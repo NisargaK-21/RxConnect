@@ -1,11 +1,13 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
+const authRoutes = require("./auth/auth.routes");
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use("/auth", authRoutes);
 
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {
