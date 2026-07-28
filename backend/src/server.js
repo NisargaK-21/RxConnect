@@ -2,6 +2,8 @@ const express = require("express");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
 const authRoutes = require("./auth/auth.routes");
+const authenticate = require("./middleware/auth.middleware");
+const authorize = require("./middleware/role.middleware");
 
 dotenv.config();
 
@@ -22,6 +24,18 @@ pool.query("SELECT NOW()", (err, result) => {
 app.get("/", (req, res) => {
   res.send("RxConnect Backend Running");
 });
+
+app.get(
+  "/admin",
+  authenticate,
+  authorize("admin"),
+  (req, res) => {
+    res.json({
+      message: "Welcome Admin",
+      user: req.user,
+    });
+  }
+);
 
 const PORT = process.env.PORT || 5000;
 
