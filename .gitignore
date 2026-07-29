@@ -34,3 +34,9 @@ Thumbs.db
 
 # Misc
 *.tmp
+
+# Turbopack
+.turbo/
+
+# PostgreSQL migration temp files (if ever generated)
+*.sql.bak
