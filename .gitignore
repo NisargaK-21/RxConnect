@@ -40,3 +40,5 @@ Thumbs.db
 
 # PostgreSQL migration temp files (if ever generated)
 *.sql.bak
+
+backend/uploads/
