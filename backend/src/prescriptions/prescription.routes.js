@@ -3,6 +3,8 @@ const router = express.Router();
 
 const prescriptionController = require("./prescription.controller");
 const upload = require("./upload.middleware");
+const authenticate = require("../middleware/auth.middleware");
+const authorize = require("../middleware/role.middleware");
 const {
   validatePrescriptionUpload,
 } = require("./prescription.validation");
@@ -13,5 +15,10 @@ router.post(
   validatePrescriptionUpload,
   prescriptionController.uploadPrescription
 );
-
+router.get(
+  "/:id",
+  authenticate,
+  authorize("PHARMACIST"),
+  prescriptionController.getPrescriptionById
+);
 module.exports = router;
