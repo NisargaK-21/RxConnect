@@ -1,6 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
+const path = require("path");
 
 const authRoutes = require("./auth/auth.routes");
 const stockRoutes = require("./stock/stock.routes");
@@ -8,7 +9,7 @@ const stockRoutes = require("./stock/stock.routes");
 const authenticate = require("./middleware/auth.middleware");
 const authorize = require("./middleware/role.middleware");
 const branchRoutes = require("./branches/branch.routes");
-
+const prescriptionRoutes = require("./prescriptions/prescription.routes");
 dotenv.config();
 
 const app = express();
@@ -18,7 +19,8 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/stock", stockRoutes);
 app.use("/branches", branchRoutes);
-
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/prescriptions", prescriptionRoutes);
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {
     console.error("Database Connection Failed");
