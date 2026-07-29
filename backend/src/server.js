@@ -1,17 +1,29 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
+
 const authRoutes = require("./auth/auth.routes");
 const notificationRoutes = require("./notifications/notification.routes");
+const stockRoutes = require("./stock/stock.routes");
+
 const authenticate = require("./middleware/auth.middleware");
 const authorize = require("./middleware/role.middleware");
+const branchRoutes = require("./branches/branch.routes");
+const userRoutes = require("./users/users.routes");
+
 
 dotenv.config();
 
 const app = express();
+
 app.use(express.json());
+
 app.use("/auth", authRoutes);
 app.use("/notifications", notificationRoutes);
+
+app.use("/stock", stockRoutes);
+app.use("/branches", branchRoutes);
+app.use("/users", userRoutes);
 
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {
