@@ -2,6 +2,8 @@ const {
     placeOrder,
     updateOrderStatus
 } = require("./order.service");
+const { placeOrder } = require("./order.service");
+const { placeManualOrder } = require("./manualOrder.service");
 
 const createOrder = async (req, res) => {
     try {
@@ -32,6 +34,18 @@ const updateStatus = async (req, res) => {
         const result = await updateOrderStatus(id, status);
 
         return res.status(200).json(result);
+const createManualOrder = async (req, res) => {
+    try {
+        const { customerId, branchId, medicineId, quantity } = req.body;
+
+        const result = await placeManualOrder(
+            customerId,
+            branchId,
+            medicineId,
+            quantity
+        );
+
+        return res.status(201).json(result);
 
     } catch (err) {
         return res.status(400).json({
@@ -43,5 +57,9 @@ const updateStatus = async (req, res) => {
 
 module.exports = {
     createOrder,
+
     updateStatus,
+
+    createManualOrder,
+  
 };

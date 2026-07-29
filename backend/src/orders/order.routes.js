@@ -3,10 +3,14 @@ const router = express.Router();
 
 const {
     createOrder,
-    updateStatus
+
+    updateStatus,
+  createManualOrder,
 } = require("./order.controller");
 
+
 router.post("/", createOrder);
-router.patch("/:id/status", updateStatus);
+router.patch("/:id/status", updateStatus); 
+router.post("/manual", createManualOrder);
 
 module.exports = router;

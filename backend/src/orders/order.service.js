@@ -7,7 +7,6 @@ const placeOrder = async (customerId, branchId, medicineId, quantity) => {
     try {
         await client.query("BEGIN");
 
-        // Get medicine details
         const medicineResult = await client.query(
             `SELECT * FROM medicines WHERE id = $1`,
             [medicineId]
@@ -19,15 +18,12 @@ const placeOrder = async (customerId, branchId, medicineId, quantity) => {
 
         const medicine = medicineResult.rows[0];
 
-        // OTC only
         if (medicine.requires_prescription) {
             throw new Error("Prescription medicine cannot be ordered through OTC API");
         }
 
-        // Atomic stock decrement (D-16)
         await decrementStock(client, branchId, medicineId, quantity);
 
-        // Create order
         const orderResult = await client.query(
             `
             INSERT INTO orders(customer_id, branch_id)
@@ -39,7 +35,6 @@ const placeOrder = async (customerId, branchId, medicineId, quantity) => {
 
         const order = orderResult.rows[0];
 
-        // Create order item
         await client.query(
             `
             INSERT INTO order_items(order_id, medicine_id, quantity, unit_price)

@@ -1,4 +1,6 @@
 const pool = require("../database/db");
+const notificationService = require("../notifications/notification.service");
+
 
 const decrementStock = async (client, branchId, medicineId, quantity) => {
   const result = await client.query(
@@ -58,6 +60,51 @@ const generateLowStockAlerts = async () => {
       )
     RETURNING *;
   `);
+
+  for (const alert of result.rows) {
+    const stockResult = await pool.query(
+      `
+      SELECT
+        bs.branch_id,
+        bs.quantity,
+        m.name AS medicine_name,
+        b.name AS branch_name
+      FROM branch_stock bs
+      JOIN medicines m ON bs.medicine_id = m.id
+      JOIN branches b ON bs.branch_id = b.id
+      WHERE bs.id = $1;
+      `,
+      [alert.branch_stock_id]
+    );
+
+    if (stockResult.rows.length === 0) continue;
+
+    const stock = stockResult.rows[0];
+    const pharmacists = await pool.query(
+      `
+      SELECT id
+      FROM users
+      WHERE role = 'pharmacist'
+        AND branch_id = $1;
+      `,
+      [stock.branch_id]
+    );
+    for (const pharmacist of pharmacists.rows) {
+      await notificationService.createNotification({
+  user_id: pharmacist.id,
+  type: "LOW_STOCK_ALERT",
+  payload: {
+    medicine: stock.medicine_name,
+    branch: stock.branch_name,
+    remainingQuantity: stock.quantity,
+  },
+});
+
+      console.log(
+        `[STUB] SMS/Email -> Pharmacist ${pharmacist.id}: ${stock.medicine_name} at ${stock.branch_name} has only ${stock.quantity} units remaining`
+      );
+    }
+  }
 
   return result.rows;
 };
