@@ -4,12 +4,14 @@ const pool = require("./database/db");
 const authRoutes = require("./auth/auth.routes");
 const authenticate = require("./middleware/auth.middleware");
 const authorize = require("./middleware/role.middleware");
+const branchRoutes = require("./branches/branch.routes");
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 app.use("/auth", authRoutes);
+app.use("/branches", branchRoutes);
 
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {
