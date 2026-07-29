@@ -108,9 +108,60 @@ const generateLowStockAlerts = async () => {
 
   return result.rows;
 };
+const acknowledgeAlert = async (alertId) => {
+  const result = await pool.query(
+    `
+    UPDATE low_stock_alerts
+    SET acknowledged = TRUE
+    WHERE id = $1
+    RETURNING *;
+    `,
+    [alertId]
+  );
 
+  return result.rows[0];
+};
+
+const escalateUnacknowledgedAlerts = async () => {
+  const result = await pool.query(
+    `
+    UPDATE low_stock_alerts
+    SET escalated = TRUE
+    WHERE acknowledged = FALSE
+      AND escalated = FALSE
+      AND created_at <= NOW() - INTERVAL '30 minutes'
+    RETURNING *;
+    `
+  );
+
+  return result.rows;
+};
+const getEscalatedAlerts = async () => {
+  const result = await pool.query(
+    `
+    SELECT
+      lsa.*,
+      b.name AS branch_name,
+      m.name AS medicine_name
+    FROM low_stock_alerts lsa
+    JOIN branch_stock bs
+      ON lsa.branch_stock_id = bs.id
+    JOIN branches b
+      ON bs.branch_id = b.id
+    JOIN medicines m
+      ON bs.medicine_id = m.id
+    WHERE lsa.escalated = TRUE
+    ORDER BY lsa.created_at DESC;
+    `
+  );
+
+  return result.rows;
+};
 module.exports = {
   decrementStock,
   updateLowStockThreshold,
   generateLowStockAlerts,
+  acknowledgeAlert,
+  escalateUnacknowledgedAlerts,
+  getEscalatedAlerts,
 };

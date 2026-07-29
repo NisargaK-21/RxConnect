@@ -44,7 +44,70 @@ const generateLowStockAlerts = async (req, res) => {
     });
   }
 };
+const acknowledgeAlert = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const alert = await stockService.acknowledgeAlert(id);
+
+    if (!alert) {
+      return res.status(404).json({
+        message: "Alert not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Alert acknowledged successfully",
+      data: alert,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+};
+
+const escalateAlerts = async (req, res) => {
+  try {
+    const alerts =
+      await stockService.escalateUnacknowledgedAlerts();
+
+    return res.status(200).json({
+      message: "Escalation completed",
+      count: alerts.length,
+      data: alerts,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+};
+
+const getEscalatedAlerts = async (req, res) => {
+  try {
+    const alerts =
+      await stockService.getEscalatedAlerts();
+
+    return res.status(200).json({
+      data: alerts,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+};
 module.exports = {
   updateLowStockThreshold,
   generateLowStockAlerts,
+  acknowledgeAlert,
+  escalateAlerts,
+  getEscalatedAlerts,
 };

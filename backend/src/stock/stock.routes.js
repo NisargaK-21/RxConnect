@@ -16,5 +16,18 @@ router.post(
   "/alerts/generate",
   stockController.generateLowStockAlerts
 );
+router.patch(
+  "/alerts/:id/acknowledge",
+  stockController.acknowledgeAlert
+);
 
+router.post(
+  "/alerts/escalate",
+  stockController.escalateAlerts
+);
+
+router.get(
+  "/alerts/escalated",
+  stockController.getEscalatedAlerts
+);
 module.exports = router;
