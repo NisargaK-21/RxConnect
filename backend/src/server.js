@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
 const authRoutes = require("./auth/auth.routes");
+const notificationRoutes = require("./notifications/notification.routes");
 const authenticate = require("./middleware/auth.middleware");
 const authorize = require("./middleware/role.middleware");
 
@@ -10,6 +11,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 app.use("/auth", authRoutes);
+app.use("/notifications", notificationRoutes);
 
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {
