@@ -1,6 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
+const path = require("path");
 
 const authRoutes = require("./auth/auth.routes");
 const notificationRoutes = require("./notifications/notification.routes");
@@ -9,6 +10,7 @@ const stockRoutes = require("./stock/stock.routes");
 const authenticate = require("./middleware/auth.middleware");
 const authorize = require("./middleware/role.middleware");
 const branchRoutes = require("./branches/branch.routes");
+const prescriptionRoutes = require("./prescriptions/prescription.routes");
 const orderRoutes = require("./orders/order.routes");
 const userRoutes = require("./users/users.routes");
 
@@ -24,6 +26,8 @@ app.use("/notifications", notificationRoutes);
 
 app.use("/stock", stockRoutes);
 app.use("/branches", branchRoutes);
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/prescriptions", prescriptionRoutes);
 app.use("/orders", orderRoutes);
 app.use("/users", userRoutes);
 
