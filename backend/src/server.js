@@ -10,6 +10,7 @@ const stockRoutes = require("./stock/stock.routes");
 const authenticate = require("./middleware/auth.middleware");
 const authorize = require("./middleware/role.middleware");
 const branchRoutes = require("./branches/branch.routes");
+const catalogRoutes = require("./catalog/catalog.routes");
 const prescriptionRoutes = require("./prescriptions/prescription.routes");
 const orderRoutes = require("./orders/order.routes");
 const userRoutes = require("./users/users.routes");
@@ -26,6 +27,7 @@ app.use("/notifications", notificationRoutes);
 
 app.use("/stock", stockRoutes);
 app.use("/branches", branchRoutes);
+app.use("/catalog", catalogRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 app.use("/prescriptions", prescriptionRoutes);
 app.use("/orders", orderRoutes);
