@@ -41,7 +41,8 @@ const getStaffById = async (id) => {
   const result = await pool.query(
     `SELECT id, name, email, role, branch_id, created_at
      FROM users
-     WHERE id = $1 AND role != 'customer'`,
+     WHERE id = $1
+       AND role != 'customer'`,
     [id]
   );
 
@@ -51,7 +52,6 @@ const getStaffById = async (id) => {
 
   return result.rows[0];
 };
-
 
 const updateStaff = async (id, data) => {
   const { name, email, role, branch_id } = data;
@@ -93,10 +93,72 @@ const deleteStaff = async (id) => {
   };
 };
 
+const getProfile = async (id) => {
+  const result = await pool.query(
+    `SELECT
+        id,
+        name,
+        email,
+        role,
+        phone,
+        address,
+        branch_id,
+        created_at
+     FROM users
+     WHERE id = $1`,
+    [id]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("User not found");
+  }
+
+  return result.rows[0];
+};
+
+const updateProfile = async (id, data) => {
+  const { name, phone, address } = data;
+
+  if (!phone || phone.trim() === "") {
+    throw new Error("Phone is required");
+  }
+
+  if (!address || address.trim() === "") {
+    throw new Error("Address is required");
+  }
+
+  const result = await pool.query(
+    `UPDATE users
+     SET
+       name = $1,
+       phone = $2,
+       address = $3
+     WHERE id = $4
+     RETURNING
+       id,
+       name,
+       email,
+       role,
+       phone,
+       address,
+       branch_id,
+       created_at`,
+    [name, phone.trim(), address.trim(), id]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("User not found");
+  }
+
+  return result.rows[0];
+};
+
 module.exports = {
   createStaff,
   getAllStaff,
   getStaffById,
   updateStaff,
   deleteStaff,
+  getProfile,
+  updateProfile,
 };
