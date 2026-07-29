@@ -8,6 +8,8 @@ const {
   getStaffById,
   updateStaff,
   deleteStaff,
+  getProfile,
+  updateProfile,
 } = require("./users.controller");
 
 const authMiddleware = require("../middleware/auth.middleware");
@@ -46,6 +48,18 @@ router.delete(
   authMiddleware,
   roleMiddleware("admin"),
   deleteStaff
+);
+
+router.get(
+  "/profile",
+  authMiddleware,
+  getProfile
+);
+
+router.put(
+  "/profile",
+  authMiddleware,
+  updateProfile
 );
 
 module.exports = router;
