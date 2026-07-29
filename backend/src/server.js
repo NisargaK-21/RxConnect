@@ -5,6 +5,7 @@ const authRoutes = require("./auth/auth.routes");
 const authenticate = require("./middleware/auth.middleware");
 const authorize = require("./middleware/role.middleware");
 const branchRoutes = require("./branches/branch.routes");
+const orderRoutes = require("./orders/order.routes");
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ const app = express();
 app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/branches", branchRoutes);
+app.use("/orders", orderRoutes);
 
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {
