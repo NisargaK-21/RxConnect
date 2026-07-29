@@ -28,7 +28,23 @@ const updateLowStockThreshold = async (req, res) => {
     });
   }
 };
+const generateLowStockAlerts = async (req, res) => {
+  try {
+    const alerts = await stockService.generateLowStockAlerts();
 
+    return res.status(201).json({
+      message: "Low stock alerts generated successfully",
+      count: alerts.length,
+      data: alerts,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+};
 module.exports = {
   updateLowStockThreshold,
+  generateLowStockAlerts,
 };

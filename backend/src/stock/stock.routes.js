@@ -12,4 +12,9 @@ router.patch(
   stockController.updateLowStockThreshold
 );
 
+router.post(
+  "/alerts/generate",
+  stockController.generateLowStockAlerts
+);
+
 module.exports = router;
