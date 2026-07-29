@@ -1,14 +1,12 @@
 const pool = require("../database/db");
 const createBranch = async (data) => {
   const { name, address } = data;
-
   const result = await pool.query(
     `INSERT INTO branches (name, address)
      VALUES ($1, $2)
      RETURNING *`,
     [name, address]
   );
-
   return result.rows[0];
 };
 
