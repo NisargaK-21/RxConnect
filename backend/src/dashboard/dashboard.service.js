@@ -87,7 +87,47 @@ const getLowStockPerBranch = async () => {
   return Object.values(grouped);
 };
 
+
+const getBranchFulfillmentRate = async () => {
+  const result = await pool.query(`
+    SELECT
+      b.id,
+      b.name,
+      COUNT(o.id) AS total_orders,
+      COUNT(
+        CASE
+          WHEN o.status = 'Delivered'
+          THEN 1
+        END
+      ) AS delivered_orders
+    FROM branches b
+    LEFT JOIN orders o
+      ON b.id = o.branch_id
+    GROUP BY b.id, b.name
+    ORDER BY b.name;
+  `);
+
+  return result.rows.map((branch) => {
+    const total = Number(branch.total_orders);
+    const delivered = Number(branch.delivered_orders);
+
+    const fulfillmentRate =
+      total === 0
+        ? 0
+        : Number(((delivered / total) * 100).toFixed(2));
+
+    return {
+      branchId: branch.id,
+      branchName: branch.name,
+      totalOrders: total,
+      deliveredOrders: delivered,
+      fulfillmentRate,
+    };
+  });
+};
+
 module.exports = {
   getTodaysOrdersPerBranch,
   getLowStockPerBranch,
+  getBranchFulfillmentRate,
 };
