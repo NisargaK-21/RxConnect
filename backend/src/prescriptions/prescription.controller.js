@@ -75,8 +75,45 @@ const getPendingPrescriptions = async (req, res) => {
     });
   }
 };
+const reviewPrescription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "Status must be approved or rejected",
+      });
+    }
+
+    const prescription =
+      await prescriptionService.reviewPrescription(
+        id,
+        req.user.id,
+        status
+      );
+
+    if (!prescription) {
+      return res.status(404).json({
+        message: "Prescription not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: `Prescription ${status} successfully`,
+      data: prescription,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
   getPendingPrescriptions,
+  reviewPrescription,
 };
