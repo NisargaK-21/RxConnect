@@ -22,7 +22,29 @@ const getCatalog = async (search = "", page = 1, limit = 10) => {
 
   return result.rows;
 };
+const getMedicineById = async (id, branchId) => {
+  const result = await pool.query(
+    `
+    SELECT
+      m.id,
+      m.name,
+      m.description,
+      m.price,
+      m.requires_prescription,
+      COALESCE(bs.quantity, 0) AS branch_stock
+    FROM medicines m
+    LEFT JOIN branch_stock bs
+      ON bs.medicine_id = m.id
+      AND bs.branch_id = $2
+    WHERE m.id = $1;
+    `,
+    [id, branchId]
+  );
+
+  return result.rows[0];
+};
 
 module.exports = {
   getCatalog,
+  getMedicineById,
 };

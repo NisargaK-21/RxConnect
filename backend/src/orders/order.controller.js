@@ -21,11 +21,21 @@ const result = await placeOrder(
         return res.status(201).json(result);
 
     } catch (err) {
-        return res.status(400).json({
+
+    if (err.message === "OUT_OF_STOCK") {
+        return res.status(409).json({
             success: false,
-            message: err.message,
+            substitutionRequired: true,
+            message: "Medicine is out of stock at the selected branch.",
+            suggestion: err.alternativeBranch,
         });
     }
+
+    return res.status(400).json({
+        success: false,
+        message: err.message,
+    });
+}
 };
 
 const updateStatus = async (req, res) => {

@@ -176,6 +176,32 @@ const getEscalatedAlerts = async () => {
 
   return result.rows;
 };
+
+const findAlternativeBranch = async (
+  currentBranchId,
+  medicineId,
+  requiredQuantity
+) => {
+  const result = await pool.query(
+    `
+    SELECT
+      b.id AS "branchId",
+      b.name AS "branchName",
+      bs.quantity AS "availableQuantity"
+    FROM branch_stock bs
+    JOIN branches b
+      ON bs.branch_id = b.id
+    WHERE bs.medicine_id = $1
+      AND bs.branch_id <> $2
+      AND bs.quantity >= $3
+    ORDER BY bs.quantity DESC
+    LIMIT 1;
+    `,
+    [medicineId, currentBranchId, requiredQuantity]
+  );
+
+  return result.rows[0] || null;
+};
 module.exports = {
   decrementStock,
   restoreStock,
@@ -184,4 +210,5 @@ module.exports = {
   acknowledgeAlert,
   escalateUnacknowledgedAlerts,
   getEscalatedAlerts,
+  findAlternativeBranch,
 };

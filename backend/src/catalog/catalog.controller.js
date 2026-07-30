@@ -1,4 +1,7 @@
-const { getCatalog } = require("./catalog.service");
+const {
+  getCatalog,
+  getMedicineById,
+} = require("./catalog.service");
 
 const fetchCatalog = async (req, res) => {
   try {
@@ -21,7 +24,42 @@ const fetchCatalog = async (req, res) => {
     });
   }
 };
+const fetchMedicineById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { branchId } = req.query;
+
+    if (!branchId) {
+      return res.status(400).json({
+        success: false,
+        message: "branchId is required",
+      });
+    }
+
+    const medicine = await getMedicineById(id, branchId);
+
+    if (!medicine) {
+      return res.status(404).json({
+        success: false,
+        message: "Medicine not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: medicine,
+    });
+  } catch (error) {
+    console.error("Error fetching medicine:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 
 module.exports = {
   fetchCatalog,
+  fetchMedicineById,
 };
