@@ -53,18 +53,25 @@ const getPendingPrescriptions = async (req, res) => {
   try {
     const branchId = req.user.branch_id;
 
-    const queue = await prescriptionService.getPendingPrescriptions(branchId);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const sort = req.query.sort === "asc" ? "ASC" : "DESC";
+
+    const queue = await prescriptionService.getPendingPrescriptions(
+      branchId,
+      page,
+      limit,
+      sort
+    );
 
     return res.status(200).json({
       success: true,
       data: queue,
     });
-  } catch (error) {
-    console.error(error);
-
+  } catch (err) {
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: err.message,
     });
   }
 };
