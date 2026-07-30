@@ -5,11 +5,15 @@ const {
     createOrder,
     updateStatus,
     cancelCustomerOrder,
-  createManualOrder,
+    fetchCustomerOrders,
+    fetchOrderById,
+    createManualOrder,
 } = require("./order.controller");
 
 
 router.post("/", createOrder);
+router.get("/customer/:customerId", fetchCustomerOrders);
+router.get("/:id", fetchOrderById);
 router.patch("/:id/status", updateStatus); 
 router.patch("/:id/cancel", cancelCustomerOrder);
 router.post("/manual", createManualOrder);

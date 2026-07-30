@@ -2,8 +2,9 @@ const {
     placeOrder,
     updateOrderStatus,
     cancelOrder,
+    getCustomerOrders,
+    getOrderById,
 } = require("./order.service");
-
 const {
     placeManualOrder,
 } = require("./manualOrder.service");
@@ -71,7 +72,36 @@ const cancelCustomerOrder = async (req, res) => {
         });
     }
 };
+const fetchCustomerOrders = async (req, res) => {
+    try {
+        const { customerId } = req.params;
 
+        const result = await getCustomerOrders(customerId);
+
+        return res.status(200).json(result);
+
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            message: err.message,
+        });
+    }
+};
+const fetchOrderById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await getOrderById(id);
+
+        return res.status(200).json(result);
+
+    } catch (err) {
+        return res.status(404).json({
+            success: false,
+            message: err.message,
+        });
+    }
+};
 const createManualOrder = async (req, res) => {
     try {
         const { customerId, branchId, medicineId, quantity } = req.body;
@@ -97,5 +127,7 @@ module.exports = {
     createOrder,
     updateStatus,
     cancelCustomerOrder,
+    fetchCustomerOrders,
+    fetchOrderById,
     createManualOrder,
 };
