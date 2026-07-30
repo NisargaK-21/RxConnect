@@ -1,5 +1,5 @@
 const prescriptionService = require("./prescription.service");
-
+const pool = require("../database/db");
 const uploadPrescription = async (req, res) => {
   try {
     const { orderItemId } = req.body;
@@ -49,7 +49,27 @@ const getPrescriptionById = async (req, res) => {
     });
   }
 };
+const getPendingPrescriptions = async (req, res) => {
+  try {
+    const branchId = req.user.branch_id;
+
+    const queue = await prescriptionService.getPendingPrescriptions(branchId);
+
+    return res.status(200).json({
+      success: true,
+      data: queue,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
+  getPendingPrescriptions,
 };
