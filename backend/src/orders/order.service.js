@@ -91,7 +91,7 @@ const updateOrderStatus = async (orderId, newStatus) => {
             `Invalid status transition. Order can only move from ${order.status} to ${expectedStatus}.`
         );
     }
-    if (newStatus === "Verified") {
+    if (newStatus === "Verified" || newStatus === "Packed") {
     const pendingPrescription = await pool.query(
         `
         SELECT p.id
@@ -107,7 +107,7 @@ const updateOrderStatus = async (orderId, newStatus) => {
 
     if (pendingPrescription.rowCount > 0) {
         throw new Error(
-            "Order contains unapproved prescription items and cannot be verified."
+            `Order contains unapproved prescription items and cannot be marked as ${newStatus}.`
         );
     }
 }
