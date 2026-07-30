@@ -63,7 +63,53 @@ const placeOrder = async (customerId, branchId, medicineId, quantity) => {
         client.release();
     }
 };
+const validTransitions = {
+    "Placed": "Verified",
+    "Verified": "Packed",
+    "Packed": "Out for Delivery",
+    "Out for Delivery": "Delivered"
+};
 
+const updateOrderStatus = async (orderId, newStatus) => {
+    const result = await pool.query(
+        `SELECT * FROM orders WHERE id = $1`,
+        [orderId]
+    );
+
+    if (result.rowCount === 0) {
+        throw new Error("Order not found");
+    }
+
+    const order = result.rows[0];
+
+    // Get the next valid status
+    const expectedStatus = validTransitions[order.status];
+
+    // Check if the requested status is valid
+    if (newStatus !== expectedStatus) {
+        throw new Error(
+            `Invalid status transition. Order can only move from ${order.status} to ${expectedStatus}.`
+        );
+    }
+
+    const updatedOrder = await pool.query(
+        `
+        UPDATE orders
+        SET status = $1,
+            status_updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *;
+        `,
+        [newStatus, orderId]
+    );
+
+    return {
+        success: true,
+        message: "Order status updated successfully",
+        order: updatedOrder.rows[0]
+    };
+};
 module.exports = {
     placeOrder,
+    updateOrderStatus,
 };
