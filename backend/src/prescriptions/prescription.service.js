@@ -36,9 +36,15 @@ const getPrescriptionById = async (id) => {
 
   return result.rows[0];
 };
-const getPendingPrescriptions = async (branchId) => {
-  const result = await pool.query(
-    `
+const getPendingPrescriptions = async (
+  branchId,
+  page,
+  limit,
+  sort
+) => {
+  const offset = (page - 1) * limit;
+
+  const query = `
     SELECT
         p.id AS prescription_id,
         p.file_url,
@@ -72,10 +78,16 @@ const getPendingPrescriptions = async (branchId) => {
       p.status = 'pending'
       AND o.branch_id = $1
 
-    ORDER BY p.id;
-    `,
-    [branchId]
-  );
+    ORDER BY p.id ${sort}
+    LIMIT $2
+    OFFSET $3;
+  `;
+
+  const result = await pool.query(query, [
+    branchId,
+    limit,
+    offset
+  ]);
 
   return result.rows;
 };

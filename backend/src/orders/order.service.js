@@ -103,10 +103,8 @@ const updateOrderStatus = async (orderId, newStatus) => {
 
     const order = result.rows[0];
 
-    // Get the next valid status
     const expectedStatus = validTransitions[order.status];
 
-    // Check if the requested status is valid
     if (newStatus !== expectedStatus) {
         throw new Error(
             `Invalid status transition. Order can only move from ${order.status} to ${expectedStatus}.`
