@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
 const path = require("path");
@@ -15,14 +16,15 @@ const catalogRoutes = require("./catalog/catalog.routes");
 const prescriptionRoutes = require("./prescriptions/prescription.routes");
 const orderRoutes = require("./orders/order.routes");
 const userRoutes = require("./users/users.routes");
+const dashboardRoutes = require("./dashboard/dashboard.routes");
 
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
-
 app.use(express.json());
+
 
 app.use("/auth", authRoutes);
 app.use("/notifications", notificationRoutes);
@@ -34,6 +36,7 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 app.use("/prescriptions", prescriptionRoutes);
 app.use("/orders", orderRoutes);
 app.use("/users", userRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {
