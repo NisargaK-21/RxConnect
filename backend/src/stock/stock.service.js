@@ -70,7 +70,7 @@ const generateLowStockAlerts = async () => {
       bs.id,
       bs.quantity
     FROM branch_stock bs
-    WHERE bs.quantity <= bs.low_stock_threshold
+    WHERE (bs.quantity - bs.reserved_quantity) <= bs.low_stock_threshold
       AND NOT EXISTS (
         SELECT 1
         FROM low_stock_alerts lsa
@@ -227,9 +227,81 @@ const getBranchStock = async (branchId) => {
 };
 
 
+const reserveStock = async (client, branchId, medicineId, quantity) => {
+  const result = await client.query(
+    `
+    UPDATE branch_stock
+    SET reserved_quantity = reserved_quantity + $1
+    WHERE branch_id = $2
+      AND medicine_id = $3
+      AND (quantity - reserved_quantity) >= $1
+    RETURNING *;
+    `,
+    [quantity, branchId, medicineId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error("Insufficient available stock");
+  }
+
+  return result.rows[0];
+};
+const releaseReservedStock = async (
+  client,
+  branchId,
+  medicineId,
+  quantity
+) => {
+  const result = await client.query(
+    `
+    UPDATE branch_stock
+    SET reserved_quantity = reserved_quantity - $1
+    WHERE branch_id = $2
+      AND medicine_id = $3
+      AND reserved_quantity >= $1
+    RETURNING *;
+    `,
+    [quantity, branchId, medicineId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error("Reserved stock not found");
+  }
+
+  return result.rows[0];
+};
+const confirmReservedStock = async (
+  client,
+  branchId,
+  medicineId,
+  quantity
+) => {
+  const result = await client.query(
+    `
+    UPDATE branch_stock
+    SET
+      quantity = quantity - $1,
+      reserved_quantity = reserved_quantity - $1
+    WHERE branch_id = $2
+      AND medicine_id = $3
+      AND reserved_quantity >= $1
+    RETURNING *;
+    `,
+    [quantity, branchId, medicineId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error("Reserved stock not found");
+  }
+
+  return result.rows[0];
+};
 module.exports = {
   decrementStock,
   restoreStock,
+  reserveStock,
+  releaseReservedStock,
+  confirmReservedStock,
   updateLowStockThreshold,
   generateLowStockAlerts,
   acknowledgeAlert,
