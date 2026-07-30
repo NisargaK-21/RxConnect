@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
 const path = require("path");
+const cors = require("cors");
 
 const authRoutes = require("./auth/auth.routes");
 const notificationRoutes = require("./notifications/notification.routes");
@@ -19,6 +20,7 @@ const userRoutes = require("./users/users.routes");
 dotenv.config();
 
 const app = express();
+app.use(cors());
 
 app.use(express.json());
 

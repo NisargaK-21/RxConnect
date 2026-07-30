@@ -22,6 +22,25 @@ const decrementStock = async (client, branchId, medicineId, quantity) => {
   return result.rows[0];
 };
 
+const restoreStock = async (client, branchId, medicineId, quantity) => {
+    const result = await client.query(
+        `
+        UPDATE branch_stock
+        SET quantity = quantity + $1
+        WHERE branch_id = $2
+          AND medicine_id = $3
+        RETURNING *;
+        `,
+        [quantity, branchId, medicineId]
+    );
+
+    if (result.rowCount === 0) {
+        throw new Error("Branch stock not found");
+    }
+
+    return result.rows[0];
+};
+
 const updateLowStockThreshold = async (
   branchId,
   medicineId,
@@ -159,6 +178,7 @@ const getEscalatedAlerts = async () => {
 };
 module.exports = {
   decrementStock,
+  restoreStock,
   updateLowStockThreshold,
   generateLowStockAlerts,
   acknowledgeAlert,

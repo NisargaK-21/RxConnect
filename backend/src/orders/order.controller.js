@@ -1,6 +1,7 @@
 const {
     placeOrder,
     updateOrderStatus,
+    cancelOrder,
 } = require("./order.service");
 
 const {
@@ -44,6 +45,23 @@ const updateStatus = async (req, res) => {
     }
 };
 
+const cancelCustomerOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { customerId } = req.body;
+
+        const result = await cancelOrder(id, customerId);
+
+        return res.status(200).json(result);
+
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            message: err.message,
+        });
+    }
+};
+
 const createManualOrder = async (req, res) => {
     try {
         const { customerId, branchId, medicineId, quantity } = req.body;
@@ -68,5 +86,6 @@ const createManualOrder = async (req, res) => {
 module.exports = {
     createOrder,
     updateStatus,
+    cancelCustomerOrder,
     createManualOrder,
 };
