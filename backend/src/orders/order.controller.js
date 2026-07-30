@@ -59,8 +59,7 @@ const updateStatus = async (req, res) => {
 const cancelCustomerOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const { customerId } = req.body;
-
+        const customerId = req.body?.customerId ?? null;
         const result = await cancelOrder(id, customerId);
 
         return res.status(200).json(result);
