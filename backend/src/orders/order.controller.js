@@ -1,9 +1,11 @@
 const {
     placeOrder,
-    updateOrderStatus
+    updateOrderStatus,
 } = require("./order.service");
-const { placeOrder } = require("./order.service");
-const { placeManualOrder } = require("./manualOrder.service");
+
+const {
+    placeManualOrder,
+} = require("./manualOrder.service");
 
 const createOrder = async (req, res) => {
     try {
@@ -34,6 +36,15 @@ const updateStatus = async (req, res) => {
         const result = await updateOrderStatus(id, status);
 
         return res.status(200).json(result);
+
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            message: err.message,
+        });
+    }
+};
+
 const createManualOrder = async (req, res) => {
     try {
         const { customerId, branchId, medicineId, quantity } = req.body;
@@ -57,9 +68,6 @@ const createManualOrder = async (req, res) => {
 
 module.exports = {
     createOrder,
-
     updateStatus,
-
     createManualOrder,
-  
 };
