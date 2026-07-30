@@ -1,5 +1,6 @@
 const stockService = require("./stock.service");
 
+
 const updateLowStockThreshold = async (req, res) => {
   try {
     const { branchId, medicineId, lowStockThreshold } = req.body;
@@ -104,10 +105,32 @@ const getEscalatedAlerts = async (req, res) => {
     });
   }
 };
+
+
+const getBranchStock = async (req, res) => {
+  try {
+    const { branchId } = req.query;
+
+    const stock = await stockService.getBranchStock(branchId);
+
+    return res.status(200).json({
+      success: true,
+      data: stock,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+
 module.exports = {
   updateLowStockThreshold,
   generateLowStockAlerts,
   acknowledgeAlert,
   escalateAlerts,
   getEscalatedAlerts,
+  getBranchStock
 };

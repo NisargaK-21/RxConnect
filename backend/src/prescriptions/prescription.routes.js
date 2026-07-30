@@ -16,9 +16,22 @@ router.post(
   prescriptionController.uploadPrescription
 );
 router.get(
+  "/pending",
+  authenticate,
+  authorize("PHARMACIST"),
+  prescriptionController.getPendingPrescriptions
+);
+router.patch(
+  "/:id/review",
+  authenticate,
+  authorize("PHARMACIST"),
+  prescriptionController.reviewPrescription
+);
+router.get(
   "/:id",
   authenticate,
   authorize("PHARMACIST"),
   prescriptionController.getPrescriptionById
 );
+
 module.exports = router;

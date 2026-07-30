@@ -1,5 +1,5 @@
 const prescriptionService = require("./prescription.service");
-
+const pool = require("../database/db");
 const uploadPrescription = async (req, res) => {
   try {
     const { orderItemId } = req.body;
@@ -49,7 +49,71 @@ const getPrescriptionById = async (req, res) => {
     });
   }
 };
+const getPendingPrescriptions = async (req, res) => {
+  try {
+    const branchId = req.user.branch_id;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const sort = req.query.sort === "asc" ? "ASC" : "DESC";
+
+    const queue = await prescriptionService.getPendingPrescriptions(
+      branchId,
+      page,
+      limit,
+      sort
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: queue,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+const reviewPrescription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "Status must be approved or rejected",
+      });
+    }
+
+    const prescription =
+      await prescriptionService.reviewPrescription(
+        id,
+        req.user.id,
+        status
+      );
+
+    if (!prescription) {
+      return res.status(404).json({
+        message: "Prescription not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: `Prescription ${status} successfully`,
+      data: prescription,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
+  getPendingPrescriptions,
+  reviewPrescription,
 };
