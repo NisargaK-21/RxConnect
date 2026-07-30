@@ -51,15 +51,16 @@ const login = async (userData) => {
   }
 
   const token = jwt.sign(
-    {
-      id: user.id,
-      role: user.role,
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: "1d",
-    }
-  );
+  {
+    id: user.id,
+    role: user.role,
+    branch_id: user.branch_id,
+  },
+  process.env.JWT_SECRET,
+  {
+    expiresIn: "1d",
+  }
+);
 
   return {
     message: "Login successful",

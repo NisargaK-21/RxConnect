@@ -36,7 +36,51 @@ const getPrescriptionById = async (id) => {
 
   return result.rows[0];
 };
+const getPendingPrescriptions = async (branchId) => {
+  const result = await pool.query(
+    `
+    SELECT
+        p.id AS prescription_id,
+        p.file_url,
+        p.status,
+
+        o.id AS order_id,
+
+        u.id AS customer_id,
+        u.name AS customer_name,
+
+        oi.quantity,
+
+        m.id AS medicine_id,
+        m.name AS medicine_name
+
+    FROM prescriptions p
+
+    JOIN order_items oi
+      ON p.order_item_id = oi.id
+
+    JOIN orders o
+      ON oi.order_id = o.id
+
+    JOIN users u
+      ON o.customer_id = u.id
+
+    JOIN medicines m
+      ON oi.medicine_id = m.id
+
+    WHERE
+      p.status = 'pending'
+      AND o.branch_id = $1
+
+    ORDER BY p.id;
+    `,
+    [branchId]
+  );
+
+  return result.rows;
+};
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
+  getPendingPrescriptions,
 };
