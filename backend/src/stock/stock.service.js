@@ -202,6 +202,31 @@ const findAlternativeBranch = async (
 
   return result.rows[0] || null;
 };
+
+
+
+const getBranchStock = async (branchId) => {
+  const result = await pool.query(
+    `
+    SELECT
+      bs.id,
+      m.id AS medicine_id,
+      m.name AS medicine_name,
+      bs.quantity,
+      bs.low_stock_threshold
+    FROM branch_stock bs
+    JOIN medicines m
+      ON bs.medicine_id = m.id
+    WHERE bs.branch_id = $1
+    ORDER BY m.name;
+    `,
+    [branchId]
+  );
+
+  return result.rows;
+};
+
+
 module.exports = {
   decrementStock,
   restoreStock,
@@ -211,4 +236,5 @@ module.exports = {
   escalateUnacknowledgedAlerts,
   getEscalatedAlerts,
   findAlternativeBranch,
+  getBranchStock,
 };
