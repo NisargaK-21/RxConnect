@@ -1,5 +1,8 @@
 const pool = require("../database/db");
-const { decrementStock } = require("../stock/stock.service");
+const {
+    decrementStock,
+    restoreStock
+} = require("../stock/stock.service");
 
 const placeOrder = async (customerId, branchId, items) => {
     const client = await pool.connect();
@@ -147,7 +150,92 @@ const updateOrderStatus = async (orderId, newStatus) => {
         order: updatedOrder.rows[0]
     };
 };
+const cancelOrder = async (orderId, customerId) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        // Check if order exists
+        const orderResult = await client.query(
+            `
+            SELECT *
+            FROM orders
+            WHERE id = $1;
+            `,
+            [orderId]
+        );
+
+        if (orderResult.rowCount === 0) {
+            throw new Error("Order not found");
+        }
+
+        const order = orderResult.rows[0];
+
+        // Check if customer owns the order
+        if (order.customer_id !== Number(customerId)) {
+            throw new Error("You can only cancel your own orders");
+        }
+
+        // Allow cancellation only for Placed or Verified orders
+        if (
+            order.status !== "Placed" &&
+            order.status !== "Verified"
+        ) {
+            throw new Error(
+                "Only Placed or Verified orders can be cancelled"
+            );
+        }
+
+        // Fetch all order items
+        const itemsResult = await client.query(
+            `
+            SELECT medicine_id, quantity
+            FROM order_items
+            WHERE order_id = $1;
+            `,
+            [orderId]
+        );
+
+        // Restore stock
+        for (const item of itemsResult.rows) {
+            await restoreStock(
+                client,
+                order.branch_id,
+                item.medicine_id,
+                item.quantity
+            );
+        }
+
+        // Update order status
+        const updatedOrder = await client.query(
+            `
+            UPDATE orders
+            SET status = 'Cancelled',
+                status_updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING *;
+            `,
+            [orderId]
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            success: true,
+            message: "Order cancelled successfully",
+            order: updatedOrder.rows[0]
+        };
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     placeOrder,
     updateOrderStatus,
+     cancelOrder,
 };

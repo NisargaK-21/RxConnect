@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const pool = require("./database/db");
 const path = require("path");
+const cors = require("cors");
 
 const authRoutes = require("./auth/auth.routes");
 const notificationRoutes = require("./notifications/notification.routes");
