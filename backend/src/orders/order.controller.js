@@ -9,14 +9,13 @@ const {
 
 const createOrder = async (req, res) => {
     try {
-        const { customerId, branchId, medicineId, quantity } = req.body;
+        const { customerId, branchId, items } = req.body;
 
-        const result = await placeOrder(
-            customerId,
-            branchId,
-            medicineId,
-            quantity
-        );
+const result = await placeOrder(
+    customerId,
+    branchId,
+    items
+);
 
         return res.status(201).json(result);
 

@@ -1,28 +1,14 @@
 const pool = require("../database/db");
 const { decrementStock } = require("../stock/stock.service");
 
-const placeOrder = async (customerId, branchId, medicineId, quantity) => {
+const placeOrder = async (customerId, branchId, items) => {
     const client = await pool.connect();
 
     try {
         await client.query("BEGIN");
-
-        const medicineResult = await client.query(
-            `SELECT * FROM medicines WHERE id = $1`,
-            [medicineId]
-        );
-
-        if (medicineResult.rowCount === 0) {
-            throw new Error("Medicine not found");
-        }
-
-        const medicine = medicineResult.rows[0];
-
-        if (medicine.requires_prescription) {
-            throw new Error("Prescription medicine cannot be ordered through OTC API");
-        }
-
-        await decrementStock(client, branchId, medicineId, quantity);
+        if (!items || items.length === 0) {
+    throw new Error("Order must contain at least one medicine");
+    }
 
         const orderResult = await client.query(
             `
@@ -34,27 +20,62 @@ const placeOrder = async (customerId, branchId, medicineId, quantity) => {
         );
 
         const order = orderResult.rows[0];
+        const orderedItems = [];
 
-        await client.query(
-            `
-            INSERT INTO order_items(order_id, medicine_id, quantity, unit_price)
-            VALUES($1, $2, $3, $4)
-            `,
-            [
-                order.id,
-                medicineId,
-                quantity,
-                medicine.price
-            ]
-        );
+        for (const item of items) {
+    const { medicineId, quantity } = item;
+   if (
+    medicineId === undefined ||
+    quantity === undefined ||
+    quantity <= 0
+) {
+    throw new Error("Each item must have a valid medicineId and quantity");
+}
+
+    const medicineResult = await client.query(
+        `SELECT * FROM medicines WHERE id = $1`,
+        [medicineId]
+    );
+
+    if (medicineResult.rowCount === 0) {
+        throw new Error("Medicine not found");
+    }
+
+    const medicine = medicineResult.rows[0];
+
+    if (medicine.requires_prescription) {
+        throw new Error("Prescription medicine cannot be ordered through OTC API");
+    }
+
+    await decrementStock(client, branchId, medicineId, quantity);
+
+    await client.query(
+        `
+        INSERT INTO order_items(order_id, medicine_id, quantity, unit_price)
+        VALUES($1, $2, $3, $4)
+        `,
+        [
+            order.id,
+            medicineId,
+            quantity,
+            medicine.price
+        ]
+    );
+    orderedItems.push({
+    medicineId,
+    quantity,
+    unitPrice: medicine.price
+});
+}
 
         await client.query("COMMIT");
 
         return {
-            success: true,
-            message: "Order placed successfully",
-            order
-        };
+    success: true,
+    message: "Order placed successfully",
+    order,
+    items: orderedItems
+};
 
     } catch (err) {
         await client.query("ROLLBACK");
