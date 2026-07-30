@@ -6,6 +6,12 @@ const {
   validateThresholdUpdate,
 } = require("./stock.validation");
 
+router.get(
+  "/",
+  stockController.getBranchStock
+);
+
+
 router.patch(
   "/threshold",
   validateThresholdUpdate,
