@@ -79,8 +79,29 @@ const getPendingPrescriptions = async (branchId) => {
 
   return result.rows;
 };
+const reviewPrescription = async (
+  prescriptionId,
+  pharmacistId,
+  status
+) => {
+  const result = await pool.query(
+    `
+    UPDATE prescriptions
+    SET
+      status = $1,
+      reviewed_by = $2,
+      reviewed_at = CURRENT_TIMESTAMP
+    WHERE id = $3
+    RETURNING *;
+    `,
+    [status, pharmacistId, prescriptionId]
+  );
+
+  return result.rows[0];
+};
 module.exports = {
-  uploadPrescription,
+ uploadPrescription,
   getPrescriptionById,
   getPendingPrescriptions,
+  reviewPrescription,
 };

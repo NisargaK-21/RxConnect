@@ -21,6 +21,12 @@ router.get(
   authorize("PHARMACIST"),
   prescriptionController.getPendingPrescriptions
 );
+router.patch(
+  "/:id/review",
+  authenticate,
+  authorize("PHARMACIST"),
+  prescriptionController.reviewPrescription
+);
 router.get(
   "/:id",
   authenticate,
