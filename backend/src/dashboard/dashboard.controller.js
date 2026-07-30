@@ -1,6 +1,7 @@
 const {
   getTodaysOrdersPerBranch,
   getLowStockPerBranch,
+  getBranchFulfillmentRate
 } = require("./dashboard.service");
 
 const getDashboard = async (req, res) => {
@@ -35,7 +36,24 @@ const getLowStockDashboard = async (req, res) => {
   }
 };
 
+const getFulfillmentDashboard = async (req, res) => {
+  try {
+    const data = await getBranchFulfillmentRate();
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 module.exports = {
   getDashboard,
   getLowStockDashboard,
+  getFulfillmentDashboard
 };
