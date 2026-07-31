@@ -246,6 +246,102 @@ const reviewPrescription = async (
     client.release();
   }
 };
+const updateStandingApproval = async (
+  prescriptionId,
+  pharmacistId,
+  isActive
+) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Fetch prescription, customer and medicine details
+    const prescriptionResult = await client.query(
+      `
+      SELECT
+        p.id,
+        oi.medicine_id,
+        o.customer_id
+      FROM prescriptions p
+      JOIN order_items oi
+        ON p.order_item_id = oi.id
+      JOIN orders o
+        ON oi.order_id = o.id
+      WHERE p.id = $1
+        AND p.status = 'approved';
+      `,
+      [prescriptionId]
+    );
+
+    if (prescriptionResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const prescription = prescriptionResult.rows[0];
+
+    if (isActive) {
+      await client.query(
+        `
+        INSERT INTO standing_prescriptions
+        (
+          customer_id,
+          medicine_id,
+          prescription_id,
+          approved_by,
+          is_active
+        )
+        VALUES ($1, $2, $3, $4, TRUE)
+        ON CONFLICT (customer_id, medicine_id)
+        DO UPDATE
+        SET
+          prescription_id = EXCLUDED.prescription_id,
+          approved_by = EXCLUDED.approved_by,
+          is_active = TRUE,
+          revoked_at = NULL;
+        `,
+        [
+          prescription.customer_id,
+          prescription.medicine_id,
+          prescription.id,
+          pharmacistId,
+        ]
+      );
+    } else {
+      await client.query(
+        `
+        UPDATE standing_prescriptions
+SET
+  is_active = FALSE,
+  revoked_at = CURRENT_TIMESTAMP
+WHERE
+  customer_id = $1
+  AND medicine_id = $2
+  AND is_active = TRUE
+RETURNING *;
+        `,
+        [
+          prescription.customer_id,
+          prescription.medicine_id,
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return {
+  prescriptionId,
+  isActive,
+};
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
 
 
 module.exports = {
@@ -253,4 +349,5 @@ module.exports = {
   getPrescriptionById,
   getPendingPrescriptions,
   reviewPrescription,
+  updateStandingApproval,
 };

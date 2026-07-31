@@ -33,5 +33,10 @@ router.get(
   authorize("pharmacist"),
   prescriptionController.getPrescriptionById
 );
-
+router.patch(
+  "/:id/standing",
+  authenticate,
+  authorize("pharmacist"),
+  prescriptionController.updateStandingApproval
+);
 module.exports = router;

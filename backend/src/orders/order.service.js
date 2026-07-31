@@ -1,8 +1,5 @@
 const pool = require("../database/db");
 const {
-    decrementStock,
-    restoreStock,
-    findAlternativeBranch,
     reserveStock,
     releaseReservedStock
 } = require("../stock/stock.service");
@@ -48,26 +45,78 @@ const placeOrder = async (customerId, branchId, items) => {
 
     const medicine = medicineResult.rows[0];
 
-    await reserveStock(
+
+
+await reserveStock(
     client,
     branchId,
     medicineId,
     quantity
 );
 
+const orderItemResult = await client.query(
+    `
+    INSERT INTO order_items(order_id, medicine_id, quantity, unit_price)
+    VALUES($1, $2, $3, $4)
+    RETURNING id;
+    `,
+    [
+        order.id,
+        medicineId,
+        quantity,
+        medicine.price
+    ]
+);
 
-    await client.query(
+const orderItemId = orderItemResult.rows[0].id;
+if (medicine.requires_prescription) {
+    const standingApproval = await client.query(
         `
-        INSERT INTO order_items(order_id, medicine_id, quantity, unit_price)
-        VALUES($1, $2, $3, $4)
+        SELECT
+            sp.approved_by,
+            p.file_url
+        FROM standing_prescriptions sp
+        JOIN prescriptions p
+            ON sp.prescription_id = p.id
+        WHERE
+            sp.customer_id = $1
+            AND sp.medicine_id = $2
+            AND sp.is_active = TRUE
+        LIMIT 1;
         `,
-        [
-            order.id,
-            medicineId,
-            quantity,
-            medicine.price
-        ]
+        [customerId, medicineId]
     );
+
+    if (standingApproval.rowCount > 0) {
+        const approval = standingApproval.rows[0];
+
+        await client.query(
+            `
+            INSERT INTO prescriptions
+            (
+                order_item_id,
+                file_url,
+                status,
+                reviewed_by,
+                reviewed_at
+            )
+            VALUES
+            (
+                $1,
+                $2,
+                'approved',
+                $3,
+                CURRENT_TIMESTAMP
+            );
+            `,
+            [
+                orderItemId,
+                approval.file_url,
+                approval.approved_by,
+            ]
+        );
+    }
+}
     orderedItems.push({
     medicineId,
     quantity,
