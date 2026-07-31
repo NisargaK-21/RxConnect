@@ -9,10 +9,9 @@ const {
     updateOrderBranch,
     acceptOrderSubstitution,
     rejectOrderSubstitution,
-    createManualOrder
+    createManualOrder,
     fetchCustomerOrders,
     fetchOrderById,
-    createManualOrder,
 } = require("./order.controller");
 
 

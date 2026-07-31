@@ -4,11 +4,11 @@ const {
     restoreStock,
     findAlternativeBranch,
     findSubstituteMedicine,
-    findSubstituteInOtherBranch
+    findSubstituteInOtherBranch,
     reserveStock,
-    releaseReservedStock
-
+    releaseReservedStock,
 } = require("../stock/stock.service");
+
 const placeOrder = async (customerId, branchId, items) => {
     const client = await pool.connect();
 
@@ -153,79 +153,6 @@ throw new Error("Medicine is unavailable in all branches and no substitute exist
     throw error;
 }
 
-    
-
-
-await reserveStock(
-    client,
-    branchId,
-    medicineId,
-    quantity
-);
-
-const orderItemResult = await client.query(
-    `
-    INSERT INTO order_items(order_id, medicine_id, quantity, unit_price)
-    VALUES($1, $2, $3, $4)
-    RETURNING id;
-    `,
-    [
-        order.id,
-        medicineId,
-        quantity,
-        medicine.price
-    ]
-);
-
-const orderItemId = orderItemResult.rows[0].id;
-if (medicine.requires_prescription) {
-    const standingApproval = await client.query(
-        `
-        SELECT
-            sp.approved_by,
-            p.file_url
-        FROM standing_prescriptions sp
-        JOIN prescriptions p
-            ON sp.prescription_id = p.id
-        WHERE
-            sp.customer_id = $1
-            AND sp.medicine_id = $2
-            AND sp.is_active = TRUE
-        LIMIT 1;
-        `,
-        [customerId, medicineId]
-    );
-
-    if (standingApproval.rowCount > 0) {
-        const approval = standingApproval.rows[0];
-
-        await client.query(
-            `
-            INSERT INTO prescriptions
-            (
-                order_item_id,
-                file_url,
-                status,
-                reviewed_by,
-                reviewed_at
-            )
-            VALUES
-            (
-                $1,
-                $2,
-                'approved',
-                $3,
-                CURRENT_TIMESTAMP
-            );
-            `,
-            [
-                orderItemId,
-                approval.file_url,
-                approval.approved_by,
-            ]
-        );
-    }
-}
     orderedItems.push({
     medicineId,
     quantity,
@@ -453,7 +380,6 @@ for (const item of items) {
         item.quantity
     );
 }
-// 4. Check stock and deduct from the new branch
 // 4. Check stock and deduct from the new branch
 for (const item of items) {
     try {
@@ -691,6 +617,7 @@ return {
 } finally {
     client.release();
 }
+};
 const getCustomerOrders = async (customerId) => {
     const result = await pool.query(
         `
@@ -759,6 +686,7 @@ module.exports = {
      acceptSubstitution,
      rejectSubstitution,
 
-     getCustomerOrders,
+   getCustomerOrders,
      getOrderById,
+
 };
