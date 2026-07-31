@@ -300,7 +300,7 @@ const cancelOrder = async (orderId, customerId) => {
 
         // Restore stock
         for (const item of itemsResult.rows) {
-           await releaseReservedStock(
+           await restoreStock(
     client,
     order.branch_id,
     item.medicine_id,
