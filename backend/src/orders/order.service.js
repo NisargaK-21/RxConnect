@@ -120,12 +120,18 @@ const updateOrderStatus = async (orderId, newStatus) => {
     if (newStatus === "Verified" || newStatus === "Packed") {
     const pendingPrescription = await pool.query(
         `
-        SELECT p.id
-        FROM prescriptions p
-        JOIN order_items oi
+        SELECT oi.id
+        FROM order_items oi
+        JOIN medicines m
+            ON oi.medicine_id = m.id
+        LEFT JOIN prescriptions p
             ON p.order_item_id = oi.id
         WHERE oi.order_id = $1
-          AND p.status <> 'approved'
+          AND m.requires_prescription = TRUE
+          AND (
+                p.id IS NULL
+                OR p.status <> 'approved'
+          )
         LIMIT 1;
         `,
         [orderId]

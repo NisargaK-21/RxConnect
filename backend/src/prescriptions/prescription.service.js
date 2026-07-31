@@ -136,10 +136,11 @@ const reviewPrescription = async (
     const prescriptionResult = await client.query(
       `
       SELECT
-        p.*,
-        oi.medicine_id,
-        oi.quantity,
-        o.branch_id
+    p.*,
+    oi.medicine_id,
+    oi.quantity,
+    oi.order_id,
+    o.branch_id
       FROM prescriptions p
       JOIN order_items oi
         ON p.order_item_id = oi.id
@@ -169,14 +170,46 @@ const reviewPrescription = async (
       [status, pharmacistId, prescriptionId]
     );
 
-    if (status === "approved") {
-      await confirmReservedStock(
+   if (status === "approved") {
+
+    await confirmReservedStock(
         client,
         prescription.branch_id,
         prescription.medicine_id,
         prescription.quantity
-      );
+    );
+
+    const pendingResult = await client.query(
+        `
+        SELECT oi.id
+        FROM order_items oi
+        JOIN medicines m
+            ON oi.medicine_id = m.id
+        LEFT JOIN prescriptions p
+            ON p.order_item_id = oi.id
+        WHERE oi.order_id = $1
+          AND m.requires_prescription = TRUE
+          AND (
+                p.id IS NULL
+                OR p.status <> 'approved'
+          )
+        LIMIT 1;
+        `,
+        [prescription.order_id]
+    );
+
+    if (pendingResult.rowCount === 0) {
+        await client.query(
+            `
+            UPDATE orders
+            SET status = 'Verified',
+                status_updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1;
+            `,
+            [prescription.order_id]
+        );
     }
+}
 
     if (status === "rejected") {
       await releaseReservedStock(
