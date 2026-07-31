@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import DashboardNav from "@/components/DashboardNav";
 import DashboardCards from "@/components/DashboardCards";
+import NotificationList from "@/components/NotificationList";
 import axios from "axios";
 
 
@@ -45,6 +46,8 @@ export default function DashboardPage() {
 
       <DashboardNav/>
 
+      <NotificationList userId={4} />
+      
        <DashboardCards
             title="Branches"
             value={branches.length}
