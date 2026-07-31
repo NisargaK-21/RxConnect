@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import DashboardNav from "@/components/DashboardNav";
 import axios from "axios";
 
 export default function LowStockDashboard() {
@@ -33,6 +34,8 @@ export default function LowStockDashboard() {
   return (
     <div style={{ padding: "30px" }}>
       <h1>Low Stock Dashboard</h1>
+
+      <DashboardNav/>
 
       {branches.map((branch) => (
         <div
