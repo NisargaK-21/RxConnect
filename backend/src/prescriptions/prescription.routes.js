@@ -18,20 +18,31 @@ router.post(
 router.get(
   "/pending",
   authenticate,
-  authorize("PHARMACIST"),
+  authorize("pharmacist"),
   prescriptionController.getPendingPrescriptions
 );
 router.patch(
   "/:id/review",
   authenticate,
-  authorize("PHARMACIST"),
+  authorize("pharmacist"),
   prescriptionController.reviewPrescription
+);
+router.get(
+  "/orders/:orderId/verification-logs",
+  authenticate,
+  authorize("pharmacist"),
+  prescriptionController.getVerificationLogsByOrder
 );
 router.get(
   "/:id",
   authenticate,
-  authorize("PHARMACIST"),
+  authorize("pharmacist"),
   prescriptionController.getPrescriptionById
 );
-
+router.patch(
+  "/:id/standing",
+  authenticate,
+  authorize("pharmacist"),
+  prescriptionController.updateStandingApproval
+);
 module.exports = router;

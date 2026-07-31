@@ -16,7 +16,7 @@ const prescriptionRoutes = require("./prescriptions/prescription.routes");
 const orderRoutes = require("./orders/order.routes");
 const userRoutes = require("./users/users.routes");
 const dashboardRoutes = require("./dashboard/dashboard.routes");
-
+const deliveryRoutes = require("./delivery/delivery.routes");
 
 dotenv.config();
 
@@ -36,6 +36,7 @@ app.use("/prescriptions", prescriptionRoutes);
 app.use("/orders", orderRoutes);
 app.use("/users", userRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/delivery", deliveryRoutes);
 
 pool.query("SELECT NOW()", (err, result) => {
   if (err) {

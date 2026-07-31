@@ -1,15 +1,48 @@
 const pool = require("../database/db");
-
+const {
+  confirmReservedStock,
+  releaseReservedStock,
+} = require("../stock/stock.service");
+const notificationService = require("../notifications/notification.service");
 const uploadPrescription = async (orderItemId, fileUrl) => {
-  const check = await pool.query(
-    "SELECT id FROM order_items WHERE id = $1",
+  const orderItemResult = await pool.query(
+    `
+    SELECT
+        oi.id,
+        m.requires_prescription
+    FROM order_items oi
+    JOIN medicines m
+        ON oi.medicine_id = m.id
+    WHERE oi.id = $1;
+    `,
     [orderItemId]
-  );
+);
 
-  if (check.rows.length === 0) {
+if (orderItemResult.rowCount === 0) {
     return null;
-  }
+}
 
+const orderItem = orderItemResult.rows[0];
+
+if (!orderItem.requires_prescription) {
+    throw new Error(
+        "This medicine does not require a prescription."
+    );
+}
+const existingPrescription = await pool.query(
+    `
+    SELECT id
+    FROM prescriptions
+    WHERE order_item_id = $1;
+    `,
+    [orderItemId]
+);
+
+if (existingPrescription.rowCount > 0) {
+    throw new Error(
+        "Prescription already uploaded for this order item."
+    );
+}
   const result = await pool.query(
     `INSERT INTO prescriptions (order_item_id, file_url)
      VALUES ($1, $2)
@@ -96,24 +129,269 @@ const reviewPrescription = async (
   pharmacistId,
   status
 ) => {
-  const result = await pool.query(
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const prescriptionResult = await client.query(
+      `
+      SELECT
+    p.*,
+    oi.medicine_id,
+    oi.quantity,
+    oi.order_id,
+    o.branch_id,
+    o.customer_id
+      FROM prescriptions p
+      JOIN order_items oi
+        ON p.order_item_id = oi.id
+      JOIN orders o
+        ON oi.order_id = o.id
+      WHERE p.id = $1;
+      `,
+      [prescriptionId]
+    );
+
+    if (prescriptionResult.rowCount === 0) {
+      throw new Error("Prescription not found");
+    }
+
+    const prescription = prescriptionResult.rows[0];
+
+    const updatedPrescription = await client.query(
+      `
+      UPDATE prescriptions
+      SET
+        status = $1,
+        reviewed_by = $2,
+        reviewed_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *;
+      `,
+      [status, pharmacistId, prescriptionId]
+    );
+
+    // Keep verification logging from main
+    await client.query(
+      `
+      INSERT INTO verification_logs
+      (
+        prescription_id,
+        pharmacist_id,
+        decision
+      )
+      VALUES ($1, $2, $3);
+      `,
+      [prescriptionId, pharmacistId, status]
+    );
+
+    if (status === "approved") {
+      await confirmReservedStock(
+        client,
+        prescription.branch_id,
+        prescription.medicine_id,
+        prescription.quantity
+      );
+    } else if (status === "rejected") {
+
+      // D-24: Auto verify when all Rx items are approved
+      const pendingResult = await client.query(
+        `
+        SELECT oi.id
+        FROM order_items oi
+        JOIN medicines m
+          ON oi.medicine_id = m.id
+        LEFT JOIN prescriptions p
+          ON p.order_item_id = oi.id
+        WHERE oi.order_id = $1
+          AND m.requires_prescription = TRUE
+          AND (
+            p.id IS NULL
+            OR p.status <> 'approved'
+          )
+        LIMIT 1;
+        `,
+        [prescription.order_id]
+      );
+
+      if (pendingResult.rowCount === 0) {
+        await client.query(
+          `
+          UPDATE orders
+          SET status = 'Verified',
+              status_updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1;
+          `,
+          [prescription.order_id]
+        );
+      }
+    }
+
+    if (status === "rejected") {
+      await releaseReservedStock(
+        client,
+        prescription.branch_id,
+        prescription.medicine_id,
+        prescription.quantity
+      );
+      await client.query(
+  `
+  UPDATE orders
+  SET
+    status = 'Rejected',
+    status_updated_at = CURRENT_TIMESTAMP
+  WHERE id = $1;
+  `,
+  [prescription.order_id]
+);
+await notificationService.createNotification({
+  user_id: prescription.customer_id,
+  type: "PRESCRIPTION_REJECTED",
+  payload: {
+    orderId: prescription.order_id,
+    prescriptionId,
+    message:
+      "Your prescription was rejected. The reserved stock has been released."
+  }
+});
+    }
+
+    await client.query("COMMIT");
+
+    return updatedPrescription.rows[0];
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+const updateStandingApproval = async (
+  prescriptionId,
+  pharmacistId,
+  isActive
+) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Fetch prescription, customer and medicine details
+    const prescriptionResult = await client.query(
+      `
+      SELECT
+        p.id,
+        oi.medicine_id,
+        o.customer_id
+      FROM prescriptions p
+      JOIN order_items oi
+        ON p.order_item_id = oi.id
+      JOIN orders o
+        ON oi.order_id = o.id
+      WHERE p.id = $1
+        AND p.status = 'approved';
+      `,
+      [prescriptionId]
+    );
+
+    if (prescriptionResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const prescription = prescriptionResult.rows[0];
+
+    if (isActive) {
+      await client.query(
+        `
+        INSERT INTO standing_prescriptions
+        (
+          customer_id,
+          medicine_id,
+          prescription_id,
+          approved_by,
+          is_active
+        )
+        VALUES ($1, $2, $3, $4, TRUE)
+        ON CONFLICT (customer_id, medicine_id)
+        DO UPDATE
+        SET
+          prescription_id = EXCLUDED.prescription_id,
+          approved_by = EXCLUDED.approved_by,
+          is_active = TRUE,
+          revoked_at = NULL;
+        `,
+        [
+          prescription.customer_id,
+          prescription.medicine_id,
+          prescription.id,
+          pharmacistId,
+        ]
+      );
+    } else {
+      await client.query(
+        `
+        UPDATE standing_prescriptions
+SET
+  is_active = FALSE,
+  revoked_at = CURRENT_TIMESTAMP
+WHERE
+  customer_id = $1
+  AND medicine_id = $2
+  AND is_active = TRUE
+RETURNING *;
+        `,
+        [
+          prescription.customer_id,
+          prescription.medicine_id,
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return {
+  prescriptionId,
+  isActive,
+};
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+const getVerificationLogsByOrder = async (orderId) => {
+  const { rows } = await pool.query(
     `
-    UPDATE prescriptions
-    SET
-      status = $1,
-      reviewed_by = $2,
-      reviewed_at = CURRENT_TIMESTAMP
-    WHERE id = $3
-    RETURNING *;
+    SELECT
+      vl.id,
+      vl.prescription_id,
+      vl.pharmacist_id,
+      vl.decision,
+      vl.created_at
+    FROM verification_logs vl
+    JOIN prescriptions p
+      ON vl.prescription_id = p.id
+    JOIN order_items oi
+      ON p.order_item_id = oi.id
+    WHERE oi.order_id = $1
+    ORDER BY vl.created_at DESC;
     `,
-    [status, pharmacistId, prescriptionId]
+    [orderId]
   );
 
-  return result.rows[0];
+  return rows;
 };
+
 module.exports = {
  uploadPrescription,
   getPrescriptionById,
   getPendingPrescriptions,
   reviewPrescription,
+  updateStandingApproval,
+  getVerificationLogsByOrder,
 };

@@ -5,18 +5,19 @@ const {
     changeOrderBranch,
     acceptSubstitution,
     rejectSubstitution
+    getCustomerOrders,
+    getOrderById,
 } = require("./order.service");
-
 const {
     placeManualOrder,
 } = require("./manualOrder.service");
 
 const createOrder = async (req, res) => {
     try {
-        const { customerId, branchId, items } = req.body;
+        const { branchId, items } = req.body;
 
 const result = await placeOrder(
-    customerId,
+    req.user.id,
     branchId,
     items
 );
@@ -69,8 +70,7 @@ const updateStatus = async (req, res) => {
 const cancelCustomerOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const { customerId } = req.body;
-
+        const customerId = req.body?.customerId ?? null;
         const result = await cancelOrder(id, customerId);
 
         return res.status(200).json(result);
@@ -91,6 +91,11 @@ const updateOrderBranch = async (req, res) => {
             id,
             branchId
         );
+const fetchCustomerOrders = async (req, res) => {
+    try {
+        const { customerId } = req.params;
+
+        const result = await getCustomerOrders(customerId);
 
         return res.status(200).json(result);
 
@@ -135,13 +140,18 @@ const rejectOrderSubstitution = async (req, res) => {
     id,
     orderItemId
 );
+const fetchOrderById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await getOrderById(id);
 
         return res.status(200).json(result);
 
     } catch (err) {
-        return res.status(400).json({
+        return res.status(404).json({
             success: false,
-            message: err.message
+            message: err.message,
         });
     }
 };
@@ -174,4 +184,8 @@ module.exports = {
     acceptOrderSubstitution,
     rejectOrderSubstitution,
     createManualOrder
+};
+    fetchCustomerOrders,
+    fetchOrderById,
+    createManualOrder,
 };
