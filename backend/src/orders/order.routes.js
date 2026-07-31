@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
-
+const authenticate = require("../middleware/auth.middleware");
+const authorize = require("../middleware/role.middleware");
 const {
     createOrder,
     updateStatus,
@@ -11,7 +12,12 @@ const {
 } = require("./order.controller");
 
 
-router.post("/", createOrder);
+router.post(
+    "/",
+    authenticate,
+    authorize("customer"),
+    createOrder
+);
 router.get("/customer/:customerId", fetchCustomerOrders);
 router.get("/:id", fetchOrderById);
 router.patch("/:id/status", updateStatus); 

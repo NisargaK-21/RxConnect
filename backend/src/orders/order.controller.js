@@ -11,10 +11,10 @@ const {
 
 const createOrder = async (req, res) => {
     try {
-        const { customerId, branchId, items } = req.body;
+        const { branchId, items } = req.body;
 
 const result = await placeOrder(
-    customerId,
+    req.user.id,
     branchId,
     items
 );

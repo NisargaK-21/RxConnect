@@ -111,9 +111,48 @@ const reviewPrescription = async (req, res) => {
     });
   }
 };
+const updateStandingApproval = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({
+        message: "isActive must be true or false",
+      });
+    }
+
+    const result =
+      await prescriptionService.updateStandingApproval(
+        id,
+        req.user.id,
+        isActive
+      );
+
+    if (!result) {
+      return res.status(404).json({
+        message: "Prescription not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: isActive
+        ? "Standing approval enabled successfully"
+        : "Standing approval revoked successfully",
+      data: result,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
   getPendingPrescriptions,
   reviewPrescription,
+  updateStandingApproval,
 };
