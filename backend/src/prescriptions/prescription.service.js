@@ -191,6 +191,7 @@ const reviewPrescription = async (
         prescription.medicine_id,
         prescription.quantity
       );
+    } else if (status === "rejected") {
 
       // D-24: Auto verify when all Rx items are approved
       const pendingResult = await client.query(
@@ -341,6 +342,8 @@ RETURNING *;
     client.release();
   }
 };
+
+
 module.exports = {
  uploadPrescription,
   getPrescriptionById,

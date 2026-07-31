@@ -11,7 +11,7 @@ export default function DashboardPage() {
 
   async function fetchDashboard() {
     try {
-      const response = await axios.get("http://localhost:5000/dashboard");
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/dashboard`);
 
       console.log(response.data);
 
