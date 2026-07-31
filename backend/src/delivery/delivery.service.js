@@ -106,6 +106,34 @@ const confirmPickup = async (orderId, deliveryPartnerId) => {
   };
 };
 
+const confirmDelivery = async (orderId, deliveryPartnerId) => {
+  const result = await pool.query(
+    `
+    UPDATE orders
+    SET
+      status = 'Delivered',
+      status_updated_at = CURRENT_TIMESTAMP
+    WHERE
+      id = $1
+      AND delivery_partner_id = $2
+      AND status = 'Out for Delivery'
+    RETURNING *;
+    `,
+    [orderId, deliveryPartnerId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error(
+      "Out for Delivery order assigned to this delivery partner not found"
+    );
+  }
+
+  return {
+    message: "Order delivered successfully",
+    order: result.rows[0],
+  };
+};
+
 const getMyJobs = async (deliveryPartnerId) => {
   const result = await pool.query(
     `
@@ -124,5 +152,6 @@ module.exports = {
   getAvailableJobs,
   claimJob,
   confirmPickup,
+  confirmDelivery,
   getMyJobs,
 };
