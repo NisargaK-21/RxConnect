@@ -11,7 +11,7 @@ export default function BranchStockDashboard() {
 
   async function fetchBranches() {
     try {
-      const response = await axios.get("http://localhost:5000/branches");
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/branches`);
 
       setBranches(response.data);
       
