@@ -28,6 +28,12 @@ router.patch(
   prescriptionController.reviewPrescription
 );
 router.get(
+  "/orders/:orderId/verification-logs",
+  authenticate,
+  authorize("pharmacist"),
+  prescriptionController.getVerificationLogsByOrder
+);
+router.get(
   "/:id",
   authenticate,
   authorize("pharmacist"),

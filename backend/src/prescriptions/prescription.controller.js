@@ -149,10 +149,29 @@ const updateStandingApproval = async (req, res) => {
     });
   }
 };
+const getVerificationLogsByOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const logs = await prescriptionService.getVerificationLogsByOrder(orderId);
+
+    return res.status(200).json({
+      message: "Verification logs fetched successfully",
+      data: logs,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: error.message,
+    });
+  }
+};
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
   getPendingPrescriptions,
   reviewPrescription,
   updateStandingApproval,
+  getVerificationLogsByOrder,
+
 };
