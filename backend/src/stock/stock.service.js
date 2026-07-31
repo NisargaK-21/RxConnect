@@ -203,7 +203,67 @@ const findAlternativeBranch = async (
   return result.rows[0] || null;
 };
 
+const findSubstituteMedicine = async (
+  branchId,
+  medicineId,
+  requiredQuantity
+) => {
+  const result = await pool.query(
+    `
+    SELECT
+      m.id,
+      m.name,
+      m.price,
+      bs.quantity AS "availableQuantity"
+    FROM medicine_substitutions ms
+    JOIN medicines m
+      ON ms.substitute_medicine_id = m.id
+    JOIN branch_stock bs
+      ON bs.medicine_id = m.id
+    WHERE ms.medicine_id = $1
+      AND bs.branch_id = $2
+      AND bs.quantity >= $3
+    ORDER BY bs.quantity DESC
+    LIMIT 1;
+    `,
+    [medicineId, branchId, requiredQuantity]
+  );
 
+  return result.rows[0] || null;
+};
+
+const findSubstituteInOtherBranch = async (
+  currentBranchId,
+  medicineId,
+  requiredQuantity
+) => {
+  const result = await pool.query(
+    `
+    SELECT
+      m.id,
+      m.name,
+      m.price,
+      b.id AS "branchId",
+      b.name AS "branchName",
+      bs.quantity AS "availableQuantity"
+    FROM medicine_substitutions ms
+    JOIN medicines m
+      ON ms.substitute_medicine_id = m.id
+    JOIN branch_stock bs
+      ON bs.medicine_id = m.id
+    JOIN branches b
+      ON bs.branch_id = b.id
+    WHERE ms.medicine_id = $1
+      AND bs.branch_id <> $2
+      AND bs.quantity >= $3
+    ORDER BY bs.quantity DESC
+    LIMIT 1;
+    `,
+    [medicineId, currentBranchId, requiredQuantity]
+  );
+
+  return result.rows[0] || null;
+};
 
 const getBranchStock = async (branchId) => {
   const result = await pool.query(
@@ -236,5 +296,8 @@ module.exports = {
   escalateUnacknowledgedAlerts,
   getEscalatedAlerts,
   findAlternativeBranch,
+  findSubstituteMedicine,
+  findAlternativeBranch,
+   findSubstituteInOtherBranch,
   getBranchStock,
 };
