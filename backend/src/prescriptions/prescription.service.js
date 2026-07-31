@@ -96,20 +96,50 @@ const reviewPrescription = async (
   pharmacistId,
   status
 ) => {
-  const result = await pool.query(
-    `
-    UPDATE prescriptions
-    SET
-      status = $1,
-      reviewed_by = $2,
-      reviewed_at = CURRENT_TIMESTAMP
-    WHERE id = $3
-    RETURNING *;
-    `,
-    [status, pharmacistId, prescriptionId]
-  );
+  const client = await pool.connect();
 
-  return result.rows[0];
+  try {
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `
+      UPDATE prescriptions
+      SET
+        status = $1,
+        reviewed_by = $2,
+        reviewed_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *;
+      `,
+      [status, pharmacistId, prescriptionId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error("Prescription not found");
+    }
+
+    await client.query(
+      `
+      INSERT INTO verification_logs
+      (
+        prescription_id,
+        pharmacist_id,
+        decision
+      )
+      VALUES ($1, $2, $3);
+      `,
+      [prescriptionId, pharmacistId, status]
+    );
+
+    await client.query("COMMIT");
+
+    return result.rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 module.exports = {
  uploadPrescription,
