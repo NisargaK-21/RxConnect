@@ -3,6 +3,7 @@ const {
   confirmReservedStock,
   releaseReservedStock,
 } = require("../stock/stock.service");
+const notificationService = require("../notifications/notification.service");
 const uploadPrescription = async (orderItemId, fileUrl) => {
   const orderItemResult = await pool.query(
     `
@@ -136,11 +137,12 @@ const reviewPrescription = async (
     const prescriptionResult = await client.query(
       `
       SELECT
-        p.*,
-        oi.medicine_id,
-        oi.quantity,
-        oi.order_id,
-        o.branch_id
+    p.*,
+    oi.medicine_id,
+    oi.quantity,
+    oi.order_id,
+    o.branch_id,
+    o.customer_id
       FROM prescriptions p
       JOIN order_items oi
         ON p.order_item_id = oi.id
@@ -233,6 +235,26 @@ const reviewPrescription = async (
         prescription.medicine_id,
         prescription.quantity
       );
+      await client.query(
+  `
+  UPDATE orders
+  SET
+    status = 'Rejected',
+    status_updated_at = CURRENT_TIMESTAMP
+  WHERE id = $1;
+  `,
+  [prescription.order_id]
+);
+await notificationService.createNotification({
+  user_id: prescription.customer_id,
+  type: "PRESCRIPTION_REJECTED",
+  payload: {
+    orderId: prescription.order_id,
+    prescriptionId,
+    message:
+      "Your prescription was rejected. The reserved stock has been released."
+  }
+});
     }
 
     await client.query("COMMIT");
