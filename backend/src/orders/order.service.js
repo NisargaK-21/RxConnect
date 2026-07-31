@@ -2,9 +2,10 @@ const pool = require("../database/db");
 const {
     decrementStock,
     restoreStock,
-    findAlternativeBranch
+    findAlternativeBranch,
+    reserveStock,
+    releaseReservedStock
 } = require("../stock/stock.service");
-
 const placeOrder = async (customerId, branchId, items) => {
     const client = await pool.connect();
 
@@ -47,30 +48,13 @@ const placeOrder = async (customerId, branchId, items) => {
 
     const medicine = medicineResult.rows[0];
 
-    if (medicine.requires_prescription) {
-        throw new Error("Prescription medicine cannot be ordered through OTC API");
-    }
+    await reserveStock(
+    client,
+    branchId,
+    medicineId,
+    quantity
+);
 
-    try {
-    await decrementStock(client, branchId, medicineId, quantity);
-} catch (error) {
-    if (error.message === "Insufficient stock") {
-
-        const alternativeBranch =
-            await findAlternativeBranch(
-                branchId,
-                medicineId,
-                quantity
-            );
-
-        const stockError = new Error("OUT_OF_STOCK");
-        stockError.alternativeBranch = alternativeBranch;
-
-        throw stockError;
-    }
-
-    throw error;
-}
 
     await client.query(
         `
@@ -219,12 +203,12 @@ const cancelOrder = async (orderId, customerId) => {
 
         // Restore stock
         for (const item of itemsResult.rows) {
-            await restoreStock(
-                client,
-                order.branch_id,
-                item.medicine_id,
-                item.quantity
-            );
+           await releaseReservedStock(
+    client,
+    order.branch_id,
+    item.medicine_id,
+    item.quantity
+);
         }
 
         // Update order status

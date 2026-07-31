@@ -18,19 +18,19 @@ router.post(
 router.get(
   "/pending",
   authenticate,
-  authorize("PHARMACIST"),
+  authorize("pharmacist"),
   prescriptionController.getPendingPrescriptions
 );
 router.patch(
   "/:id/review",
   authenticate,
-  authorize("PHARMACIST"),
+  authorize("pharmacist"),
   prescriptionController.reviewPrescription
 );
 router.get(
   "/:id",
   authenticate,
-  authorize("PHARMACIST"),
+  authorize("pharmacist"),
   prescriptionController.getPrescriptionById
 );
 
