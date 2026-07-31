@@ -3,12 +3,19 @@ const pool = require("../database/db");
 const getAvailableJobs = async (user) => {
   const result = await pool.query(
     `
-    SELECT *
-    FROM orders
-    WHERE status = 'Packed'
-      AND branch_id = $1
-      AND delivery_partner_id IS NULL
-    ORDER BY created_at ASC
+    SELECT
+      o.id AS order_reference,
+      o.status,
+      o.created_at,
+      b.name AS pickup_branch,
+      b.address AS pickup_branch_address
+    FROM orders o
+    JOIN branches b
+      ON o.branch_id = b.id
+    WHERE o.status = 'Packed'
+      AND o.branch_id = $1
+      AND o.delivery_partner_id IS NULL
+    ORDER BY o.created_at ASC
     `,
     [user.branch_id]
   );
