@@ -19,4 +19,5 @@ router.delete("/:id", authenticate, authorize("admin"), deleteBranch);
 router.get("/", authenticate, getAllBranches);
 router.get("/:id", authenticate, getBranchById);
 
+
 module.exports = router;

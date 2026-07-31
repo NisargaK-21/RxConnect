@@ -6,7 +6,10 @@ const authorize = (...allowedRoles) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    const userRole = req.user.role.toLowerCase();
+    const roles = allowedRoles.map(role => role.toLowerCase());
+
+    if (!roles.includes(userRole)) {
       return res.status(403).json({
         message: "Forbidden: You do not have permission to access this resource",
       });

@@ -2,9 +2,10 @@ const pool = require("../database/db");
 const {
     decrementStock,
     restoreStock,
-    findAlternativeBranch
+    findAlternativeBranch,
+    reserveStock,
+    releaseReservedStock
 } = require("../stock/stock.service");
-
 const placeOrder = async (customerId, branchId, items) => {
     const client = await pool.connect();
 
@@ -47,30 +48,13 @@ const placeOrder = async (customerId, branchId, items) => {
 
     const medicine = medicineResult.rows[0];
 
-    if (medicine.requires_prescription) {
-        throw new Error("Prescription medicine cannot be ordered through OTC API");
-    }
+    await reserveStock(
+    client,
+    branchId,
+    medicineId,
+    quantity
+);
 
-    try {
-    await decrementStock(client, branchId, medicineId, quantity);
-} catch (error) {
-    if (error.message === "Insufficient stock") {
-
-        const alternativeBranch =
-            await findAlternativeBranch(
-                branchId,
-                medicineId,
-                quantity
-            );
-
-        const stockError = new Error("OUT_OF_STOCK");
-        stockError.alternativeBranch = alternativeBranch;
-
-        throw stockError;
-    }
-
-    throw error;
-}
 
     await client.query(
         `
@@ -219,12 +203,12 @@ const cancelOrder = async (orderId, customerId) => {
 
         // Restore stock
         for (const item of itemsResult.rows) {
-            await restoreStock(
-                client,
-                order.branch_id,
-                item.medicine_id,
-                item.quantity
-            );
+           await releaseReservedStock(
+    client,
+    order.branch_id,
+    item.medicine_id,
+    item.quantity
+);
         }
 
         // Update order status
@@ -254,8 +238,69 @@ const cancelOrder = async (orderId, customerId) => {
         client.release();
     }
 };
+const getCustomerOrders = async (customerId) => {
+    const result = await pool.query(
+        `
+        SELECT
+            id,
+            customer_id,
+            branch_id,
+            status,
+            created_at,
+            status_updated_at
+        FROM orders
+        WHERE customer_id = $1
+        ORDER BY created_at DESC;
+        `,
+        [customerId]
+    );
+
+    return {
+        success: true,
+        count: result.rowCount,
+        orders: result.rows
+    };
+};
+const getOrderById = async (orderId) => {
+    const orderResult = await pool.query(
+        `
+        SELECT *
+        FROM orders
+        WHERE id = $1;
+        `,
+        [orderId]
+    );
+
+    if (orderResult.rowCount === 0) {
+        throw new Error("Order not found");
+    }
+
+    const itemsResult = await pool.query(
+        `
+        SELECT
+            oi.id,
+            oi.medicine_id,
+            m.name AS medicine_name,
+            oi.quantity,
+            oi.unit_price
+        FROM order_items oi
+        JOIN medicines m
+            ON oi.medicine_id = m.id
+        WHERE oi.order_id = $1;
+        `,
+        [orderId]
+    );
+
+    return {
+        success: true,
+        order: orderResult.rows[0],
+        items: itemsResult.rows,
+    };
+};
 module.exports = {
     placeOrder,
     updateOrderStatus,
      cancelOrder,
+     getCustomerOrders,
+     getOrderById,
 };
