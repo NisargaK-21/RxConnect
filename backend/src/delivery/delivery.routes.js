@@ -23,6 +23,12 @@ router.patch(
   deliveryController.confirmPickup
 );
 
+router.patch(
+  "/jobs/:orderId/deliver",
+  authenticate,
+  deliveryController.confirmDelivery
+);
+
 router.get(
   "/my-jobs",
   authenticate,
