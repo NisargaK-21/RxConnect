@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import DashboardNav from "@/components/DashboardNav";
 import axios from "axios";
 
 export default function FulfillmentDashboard() {
@@ -38,6 +39,8 @@ export default function FulfillmentDashboard() {
   return (
     <div style={{ padding: "30px" }}>
       <h1>Branch Fulfillment Dashboard</h1>
+
+      <DashboardNav/>
 
       <table border="1" cellPadding="10">
         <thead>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import DashboardNav from "@/components/DashboardNav";
 import axios from "axios";
 
 export default function BranchStockDashboard() {
@@ -56,6 +57,8 @@ export default function BranchStockDashboard() {
   return (
     <div style={{ padding: "30px" }}>
       <h1>Branch Stock Overview</h1>
+
+      <DashboardNav/>
 
       <br />
 

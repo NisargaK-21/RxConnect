@@ -2,6 +2,8 @@
 
 
 import { useEffect, useState } from "react";
+import DashboardNav from "@/components/DashboardNav";
+import DashboardCards from "@/components/DashboardCards";
 import axios from "axios";
 
 
@@ -41,6 +43,13 @@ export default function DashboardPage() {
     <div style={{ padding: "30px" }}>
       <h1>Orders Today Per Branch</h1>
 
+      <DashboardNav/>
+
+       <DashboardCards
+            title="Branches"
+            value={branches.length}
+      />
+
       {branches.map((branch) => (
         <div
           key={branch.branchId}
@@ -56,9 +65,11 @@ export default function DashboardPage() {
             <strong>Total Orders:</strong> {branch.orderCount}
           </p>
 
+
           {branch.orders.length === 0 ? (
             <p>No orders today.</p>
           ) : (
+            
             <table border="1" cellPadding="10">
               <thead>
                 <tr>
