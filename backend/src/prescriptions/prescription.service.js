@@ -364,7 +364,28 @@ RETURNING *;
     client.release();
   }
 };
+const getVerificationLogsByOrder = async (orderId) => {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      vl.id,
+      vl.prescription_id,
+      vl.pharmacist_id,
+      vl.decision,
+      vl.created_at
+    FROM verification_logs vl
+    JOIN prescriptions p
+      ON vl.prescription_id = p.id
+    JOIN order_items oi
+      ON p.order_item_id = oi.id
+    WHERE oi.order_id = $1
+    ORDER BY vl.created_at DESC;
+    `,
+    [orderId]
+  );
 
+  return rows;
+};
 
 module.exports = {
  uploadPrescription,
@@ -372,4 +393,5 @@ module.exports = {
   getPendingPrescriptions,
   reviewPrescription,
   updateStandingApproval,
+  getVerificationLogsByOrder,
 };
