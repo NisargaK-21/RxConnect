@@ -133,7 +133,6 @@ const reviewPrescription = async (
   try {
     await client.query("BEGIN");
 
-    const result = await client.query(
     const prescriptionResult = await client.query(
       `
       SELECT
@@ -170,10 +169,6 @@ const reviewPrescription = async (
       [status, pharmacistId, prescriptionId]
     );
 
-    if (result.rows.length === 0) {
-      throw new Error("Prescription not found");
-    }
-
     await client.query(
       `
       INSERT INTO verification_logs
@@ -187,12 +182,6 @@ const reviewPrescription = async (
       [prescriptionId, pharmacistId, status]
     );
 
-    await client.query("COMMIT");
-
-    return result.rows[0];
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
     if (status === "approved") {
       await confirmReservedStock(
         client,
@@ -200,9 +189,7 @@ const reviewPrescription = async (
         prescription.medicine_id,
         prescription.quantity
       );
-    }
-
-    if (status === "rejected") {
+    } else if (status === "rejected") {
       await releaseReservedStock(
         client,
         prescription.branch_id,
@@ -218,11 +205,12 @@ const reviewPrescription = async (
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
-
   } finally {
     client.release();
   }
 };
+
+
 module.exports = {
  uploadPrescription,
   getPrescriptionById,
