@@ -2,6 +2,9 @@ const {
     placeOrder,
     updateOrderStatus,
     cancelOrder,
+    changeOrderBranch,
+    acceptSubstitution,
+    rejectSubstitution
     getCustomerOrders,
     getOrderById,
 } = require("./order.service");
@@ -24,11 +27,19 @@ const result = await placeOrder(
     } catch (err) {
 
     if (err.message === "OUT_OF_STOCK") {
+
         return res.status(409).json({
             success: false,
             substitutionRequired: true,
-            message: "Medicine is out of stock at the selected branch.",
-            suggestion: err.alternativeBranch,
+            message: "Medicine is out of stock.",
+
+            orderId: err.orderId,
+            orderItemId: err.orderItemId,
+
+            branchSuggestion: err.alternativeBranch,
+            medicineSuggestion: err.substituteMedicine,
+            medicineOtherBranchSuggestion:
+                err.substituteOtherBranch
         });
     }
 
@@ -71,6 +82,15 @@ const cancelCustomerOrder = async (req, res) => {
         });
     }
 };
+const updateOrderBranch = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { branchId } = req.body;
+
+        const result = await changeOrderBranch(
+            id,
+            branchId
+        );
 const fetchCustomerOrders = async (req, res) => {
     try {
         const { customerId } = req.params;
@@ -86,6 +106,40 @@ const fetchCustomerOrders = async (req, res) => {
         });
     }
 };
+const acceptOrderSubstitution = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const {
+            orderItemId,
+            branchId,
+            medicineId
+        } = req.body;
+
+        const result = await acceptSubstitution(
+            id,
+            orderItemId,
+            branchId,
+            medicineId
+        );
+
+        res.status(200).json(result);
+
+    } catch (err) {
+        res.status(400).json({
+            success: false,
+            message: err.message
+        });
+    }
+};
+const rejectOrderSubstitution = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { orderItemId } = req.body;
+        const result = await rejectSubstitution(
+    id,
+    orderItemId
+);
 const fetchOrderById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -126,6 +180,11 @@ module.exports = {
     createOrder,
     updateStatus,
     cancelCustomerOrder,
+    updateOrderBranch,
+    acceptOrderSubstitution,
+    rejectOrderSubstitution,
+    createManualOrder
+};
     fetchCustomerOrders,
     fetchOrderById,
     createManualOrder,
