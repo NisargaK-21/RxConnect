@@ -29,6 +29,24 @@ const claimJob = async (req, res) => {
   }
 };
 
+const confirmPickup = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const result = await deliveryService.confirmPickup(
+      orderId,
+      req.user.id
+    );
+
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(400).json({
+      message: error.message,
+    });
+  }
+};
+
+
 const getMyJobs = async (req, res) => {
   try {
     const jobs = await deliveryService.getMyJobs(req.user.id);
@@ -44,5 +62,6 @@ const getMyJobs = async (req, res) => {
 module.exports = {
   getAvailableJobs,
   claimJob,
+  confirmPickup,
   getMyJobs,
 };

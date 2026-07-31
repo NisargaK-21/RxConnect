@@ -17,6 +17,12 @@ router.patch(
   deliveryController.claimJob
 );
 
+router.patch(
+  "/jobs/:orderId/pickup",
+  authenticate,
+  deliveryController.confirmPickup
+);
+
 router.get(
   "/my-jobs",
   authenticate,
