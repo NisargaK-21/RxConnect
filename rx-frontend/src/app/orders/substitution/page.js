@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SubstitutionTestPage() {
-  const [customerId, setCustomerId] = useState("");
-  const [branchId, setBranchId] = useState("");
-  const [medicineId, setMedicineId] = useState("");
-  const [quantity, setQuantity] = useState("");
+ const router = useRouter();
 
   const [loading, setLoading] = useState(false);
 
@@ -14,67 +12,14 @@ export default function SubstitutionTestPage() {
   const [messageType, setMessageType] = useState("");
 
   const [substitution, setSubstitution] = useState(null);
-    const placeOrder = async () => {
-    setLoading(true);
-    setMessage("");
-    setMessageType("");
-    setSubstitution(null);
 
-    try {
-      const response = await fetch("http://localhost:5000/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          customerId: Number(customerId),
-          branchId: Number(branchId),
-          items: [
-            {
-              medicineId: Number(medicineId),
-              quantity: Number(quantity),
-            },
-          ],
-        }),
-      });
+useEffect(() => {
+  const data = localStorage.getItem("substitutionData");
 
-      const data = await response.json();
-
-      if (response.status === 201) {
-        setMessage(data.message || "Order placed successfully.");
-        setMessageType("success");
-      } else if (response.status === 409) {
-        setMessage(
-          data.message ||
-            "Medicine unavailable. Please choose one of the available substitution options."
-        );
-        setMessageType("warning");
-
-        setSubstitution({
-          orderId: data.orderId,
-          orderItemId: data.orderItemId,
-
-          originalBranchId: Number(branchId),
-          originalMedicineId: Number(medicineId),
-
-          branchSuggestion: data.branchSuggestion,
-          medicineSuggestion: data.medicineSuggestion,
-          medicineOtherBranchSuggestion:
-            data.medicineOtherBranchSuggestion,
-        });
-      } else {
-        setMessage(data.message || "Something went wrong.");
-        setMessageType("error");
-      }
-    } catch (error) {
-      console.error(error);
-
-      setMessage("Unable to connect to the server.");
-      setMessageType("error");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (data) {
+    setSubstitution(JSON.parse(data));
+  }
+}, []);
     const acceptChoice = async (selectedBranchId, selectedMedicineId) => {
     if (!substitution) return;
 
@@ -101,7 +46,8 @@ export default function SubstitutionTestPage() {
       if (response.ok) {
         setMessage(data.message || "Substitution accepted successfully.");
         setMessageType("success");
-        setSubstitution(null);
+        localStorage.removeItem("substitutionData");
+router.push("/orders?customerId=3");
       } else {
         setMessage(data.message || "Failed to accept substitution.");
         setMessageType("error");
@@ -140,7 +86,8 @@ export default function SubstitutionTestPage() {
       if (response.ok) {
         setMessage(data.message || "Substitution rejected.");
         setMessageType("success");
-        setSubstitution(null);
+        localStorage.removeItem("substitutionData");
+router.push("/orders?customerId=3");
       } else {
         setMessage(data.message || "Failed to reject substitution.");
         setMessageType("error");
@@ -159,53 +106,13 @@ export default function SubstitutionTestPage() {
     <div className="min-h-screen bg-gray-100 py-10 px-4">
   <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-8">
 
-    <h1 className="text-3xl font-bold text-center text-blue-700 mb-8">
-      Medicine Substitution Test
-    </h1>
+  <h1 className="text-3xl font-bold text-center text-blue-700 mb-8">
+  Medicine Substitution
+</h1>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    
 
-      <input
-        type="number"
-        placeholder="Customer ID"
-        value={customerId}
-        onChange={(e) => setCustomerId(e.target.value)}
-        className="border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-
-      <input
-        type="number"
-        placeholder="Branch ID"
-        value={branchId}
-        onChange={(e) => setBranchId(e.target.value)}
-        className="border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-
-      <input
-        type="number"
-        placeholder="Medicine ID"
-        value={medicineId}
-        onChange={(e) => setMedicineId(e.target.value)}
-        className="border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-
-      <input
-        type="number"
-        placeholder="Quantity"
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-        className="border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-
-    </div>
-
-    <button
-      onClick={placeOrder}
-      disabled={loading}
-      className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 rounded-lg transition"
-    >
-      {loading ? "Processing..." : "Place Order"}
-    </button>
+  
         {message && (
       <div
         className={`mt-6 rounded-lg p-4 text-white font-medium ${

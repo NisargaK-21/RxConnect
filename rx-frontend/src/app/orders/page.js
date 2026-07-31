@@ -1,140 +1,105 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function OrdersPage() {
-  const [customerId, setCustomerId] = useState("");
-  const [branchId, setBranchId] = useState("");
-  const [medicineId, setMedicineId] = useState("");
-  const [quantity, setQuantity] = useState("");
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [message, setMessage] = useState("");
-  const [suggestion, setSuggestion] = useState(null);
+  const customerId = searchParams.get("customerId");
 
-  const placeOrder = async () => {
-    setMessage("");
-    setSuggestion(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    const response = await fetch("http://localhost:5000/orders", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        customerId: Number(customerId),
-        branchId: Number(branchId),
-        items: [
-          {
-            medicineId: Number(medicineId),
-            quantity: Number(quantity),
+  const token = localStorage.getItem("token");
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/orders/customer/${customerId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-        ],
-      }),
-    });
+        }
+      );
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (response.status === 201) {
-      setMessage(data.message);
-      return;
+      if (data.success) {
+        setOrders(data.orders);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to fetch orders");
+    } finally {
+      setLoading(false);
     }
-
-    if (response.status === 409) {
-      setMessage(data.message);
-      setSuggestion(data.suggestion);
-      return;
-    }
-
-    setMessage(data.message || "Something went wrong");
   };
+
+  if (loading) {
+    return (
+      <div style={{ padding: "30px" }}>
+        <h2>Loading Orders...</h2>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "30px" }}>
-      <h1>Place Order</h1>
+      <h1>My Orders</h1>
 
       <br />
 
-      <input
-        type="number"
-        placeholder="Customer ID"
-        value={customerId}
-        onChange={(e) => setCustomerId(e.target.value)}
-      />
+      {orders.length === 0 ? (
+        <h3>No Orders Found</h3>
+      ) : (
+        orders.map((order) => (
+          <div
+            key={order.id}
+            style={{
+              border: "1px solid #ccc",
+              padding: "20px",
+              marginBottom: "20px",
+              borderRadius: "8px",
+            }}
+          >
+            <h3>Order #{order.id}</h3>
 
-      <br />
-      <br />
+            <p>
+              <strong>Status:</strong> {order.status}
+            </p>
 
-      <input
-        type="number"
-        placeholder="Branch ID"
-        value={branchId}
-        onChange={(e) => setBranchId(e.target.value)}
-      />
+            <p>
+              <strong>Branch:</strong> {order.branch_id}
+            </p>
 
-      <br />
-      <br />
+            <p>
+              <strong>Created At:</strong>{" "}
+              {new Date(order.created_at).toLocaleString()}
+            </p>
 
-      <input
-        type="number"
-        placeholder="Medicine ID"
-        value={medicineId}
-        onChange={(e) => setMedicineId(e.target.value)}
-      />
-
-      <br />
-      <br />
-
-      <input
-        type="number"
-        placeholder="Quantity"
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-      />
-
-      <br />
-      <br />
-
-      <button onClick={placeOrder}>
-        Place Order
-      </button>
-
-      <br />
-      <br />
-
-      {message && (
-        <h3>{message}</h3>
+            <button
+              onClick={() => router.push(`/orders/${order.id}`)}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: "5px",
+                cursor: "pointer",
+              }}
+            >
+              View Details
+            </button>
+          </div>
+        ))
       )}
-
-      {suggestion && (
-        <div
-          style={{
-            border: "1px solid black",
-            padding: "15px",
-            marginTop: "20px",
-          }}
-        >
-          <h3>Alternative Branch Available</h3>
-
-          <p>
-            <strong>Branch:</strong> {suggestion.branchName}
-          </p>
-
-          <p>
-            <strong>Available Quantity:</strong>{" "}
-            {suggestion.availableQuantity}
-          </p>
-
-          <button>
-            Request Pharmacist Approval
-          </button>
-        </div>
-      )}
-
-      {message &&
-        !suggestion &&
-        message.includes("out of stock") && (
-          <p>No alternative branch has sufficient stock.</p>
-        )}
     </div>
   );
 }

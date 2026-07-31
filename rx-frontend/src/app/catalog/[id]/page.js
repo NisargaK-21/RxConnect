@@ -2,10 +2,13 @@
 
 import { use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+console.log("Medicine Details Page Loaded");
 
 export default function MedicineDetails({ params }) {
   const { id } = use(params);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const branchId = searchParams.get("branchId") || "1";
 
@@ -13,17 +16,45 @@ export default function MedicineDetails({ params }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`http://localhost:5000/catalog/${id}?branchId=${branchId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setMedicine(data.data);
+    const fetchMedicine = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:5000/catalog/${id}?branchId=${branchId}`
+        );
+
+        const data = await res.json();
+
+        if (data.success) {
+          setMedicine(data.data);
+        } else {
+          setMedicine(null);
+        }
+      } catch (error) {
+        console.error("Error fetching medicine:", error);
+        setMedicine(null);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    fetchMedicine();
   }, [id, branchId]);
 
-  if (loading) return <h2>Loading...</h2>;
+  if (loading) {
+    return (
+      <div style={{ padding: "30px" }}>
+        <h2>Loading...</h2>
+      </div>
+    );
+  }
 
-  if (!medicine) return <h2>Medicine not found</h2>;
+  if (!medicine) {
+    return (
+      <div style={{ padding: "30px" }}>
+        <h2>Medicine not found.</h2>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "30px" }}>
@@ -47,14 +78,31 @@ export default function MedicineDetails({ params }) {
       </p>
 
       {medicine.branch_stock > 0 ? (
-        <p style={{ color: "green" }}>In Stock</p>
+        <p style={{ color: "green", fontWeight: "bold" }}>In Stock</p>
       ) : (
-        <p style={{ color: "red" }}>Out of Stock</p>
+        <p style={{ color: "red", fontWeight: "bold" }}>Out of Stock</p>
       )}
 
-      <button disabled={medicine.branch_stock === 0}>
-        Add to Cart
-      </button>
+      <button
+  disabled={medicine.branch_stock === 0}
+  onClick={() =>
+    router.push(
+      `/orders/place?medicineId=${medicine.id}&branchId=${branchId}`
+    )
+  }
+  style={{
+    marginTop: "20px",
+    padding: "10px 20px",
+    backgroundColor:
+      medicine.branch_stock > 0 ? "#2563eb" : "#9ca3af",
+    color: "white",
+    border: "none",
+    borderRadius: "5px",
+    cursor: medicine.branch_stock > 0 ? "pointer" : "not-allowed",
+  }}
+>
+  {medicine.branch_stock > 0 ? "Order Now" : "Out of Stock"}
+</button>
     </div>
   );
 }
