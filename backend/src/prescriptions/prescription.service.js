@@ -133,13 +133,13 @@ const reviewPrescription = async (
   try {
     await client.query("BEGIN");
 
-    const result = await client.query(
     const prescriptionResult = await client.query(
       `
       SELECT
         p.*,
         oi.medicine_id,
         oi.quantity,
+        oi.order_id,
         o.branch_id
       FROM prescriptions p
       JOIN order_items oi
@@ -170,10 +170,7 @@ const reviewPrescription = async (
       [status, pharmacistId, prescriptionId]
     );
 
-    if (result.rows.length === 0) {
-      throw new Error("Prescription not found");
-    }
-
+    // Keep verification logging from main
     await client.query(
       `
       INSERT INTO verification_logs
@@ -187,12 +184,6 @@ const reviewPrescription = async (
       [prescriptionId, pharmacistId, status]
     );
 
-    await client.query("COMMIT");
-
-    return result.rows[0];
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
     if (status === "approved") {
       await confirmReservedStock(
         client,
@@ -200,6 +191,38 @@ const reviewPrescription = async (
         prescription.medicine_id,
         prescription.quantity
       );
+
+      // D-24: Auto verify when all Rx items are approved
+      const pendingResult = await client.query(
+        `
+        SELECT oi.id
+        FROM order_items oi
+        JOIN medicines m
+          ON oi.medicine_id = m.id
+        LEFT JOIN prescriptions p
+          ON p.order_item_id = oi.id
+        WHERE oi.order_id = $1
+          AND m.requires_prescription = TRUE
+          AND (
+            p.id IS NULL
+            OR p.status <> 'approved'
+          )
+        LIMIT 1;
+        `,
+        [prescription.order_id]
+      );
+
+      if (pendingResult.rowCount === 0) {
+        await client.query(
+          `
+          UPDATE orders
+          SET status = 'Verified',
+              status_updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1;
+          `,
+          [prescription.order_id]
+        );
+      }
     }
 
     if (status === "rejected") {
@@ -218,7 +241,6 @@ const reviewPrescription = async (
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
-
   } finally {
     client.release();
   }
