@@ -7,6 +7,7 @@ import {
   updateBranch,
   deleteBranch,
 } from "@/services/branch.service";
+import { getToken } from "@/utils/auth";
 
 import BranchTable from "./BranchTable";
 
@@ -23,7 +24,7 @@ export default function BranchForm() {
 
   async function fetchBranches() {
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       const res = await getBranches(token);
 
@@ -49,7 +50,7 @@ export default function BranchForm() {
     if (!confirmDelete) return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       await deleteBranch(id, token);
 
@@ -68,7 +69,7 @@ export default function BranchForm() {
     e.preventDefault();
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       if (editingId) {
         await updateBranch(

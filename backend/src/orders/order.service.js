@@ -9,184 +9,214 @@ const {
     releaseReservedStock,
 } = require("../stock/stock.service");
 
-const placeOrder = async (customerId, branchId, items) => {
+const ORDER_STATUS_PENDING_REVIEW = "Pending Pharmacist Review";
+
+const placeOrder = async (
+    customerId,
+    branchId,
+    items,
+    prescriptionFileUrl = null
+) => {
     const client = await pool.connect();
 
     try {
         await client.query("BEGIN");
+
         if (!items || items.length === 0) {
-    throw new Error("Order must contain at least one medicine");
-    }
+            throw new Error("Order must contain at least one medicine");
+        }
 
         const orderResult = await client.query(
             `
-            INSERT INTO orders(customer_id, branch_id)
-            VALUES($1, $2)
+            INSERT INTO orders(customer_id, branch_id, status)
+            VALUES($1, $2, $3)
             RETURNING *;
             `,
-            [customerId, branchId]
+            [customerId, branchId, "Placed"]
         );
 
         const order = orderResult.rows[0];
         const orderedItems = [];
+        let hasPrescriptionItem = false;
 
         for (const item of items) {
-    const { medicineId, quantity } = item;
-   if (
-    medicineId === undefined ||
-    quantity === undefined ||
-    quantity <= 0
-) {
-    throw new Error("Each item must have a valid medicineId and quantity");
-}
+            const { medicineId, quantity } = item;
 
-    const medicineResult = await client.query(
-        `SELECT * FROM medicines WHERE id = $1`,
-        [medicineId]
-    );
+            if (
+                medicineId === undefined ||
+                quantity === undefined ||
+                quantity <= 0
+            ) {
+                throw new Error("Each item must have a valid medicineId and quantity");
+            }
 
-    if (medicineResult.rowCount === 0) {
-        throw new Error("Medicine not found");
-    }
-
-    const medicine = medicineResult.rows[0];
-
-    if (medicine.requires_prescription) {
-        throw new Error("Prescription medicine cannot be ordered through OTC API");
-    }
-    const orderItemResult = await client.query(
-    `
-    INSERT INTO order_items
-    (
-        order_id,
-        medicine_id,
-        quantity,
-        unit_price,
-        status
-    )
-    VALUES($1,$2,$3,$4,'Pending Substitution')
-    RETURNING *;
-    `,
-    [
-        order.id,
-        medicineId,
-        quantity,
-        medicine.price
-    ]
-);
-
-const orderItem = orderItemResult.rows[0];
-
-try {
-
-    await decrementStock(
-        client,
-        branchId,
-        medicineId,
-        quantity
-    );
-
-    await client.query(
-        `
-        UPDATE order_items
-        SET status = 'Confirmed'
-        WHERE id = $1;
-        `,
-        [orderItem.id]
-    );
-
-} catch (error) {
-
-    if (error.message === "Insufficient stock") {
-
-        const alternativeBranch =
-            await findAlternativeBranch(
-                branchId,
-                medicineId,
-                quantity
+            const medicineResult = await client.query(
+                `SELECT * FROM medicines WHERE id = $1`,
+                [medicineId]
             );
 
-        
+            if (medicineResult.rowCount === 0) {
+                throw new Error("Medicine not found");
+            }
 
-        const substituteMedicine =
-            await findSubstituteMedicine(
-                branchId,
-                medicineId,
-                quantity
+            const medicine = medicineResult.rows[0];
+
+            if (medicine.requires_prescription) {
+                hasPrescriptionItem = true;
+            }
+
+            const orderItemResult = await client.query(
+                `
+                INSERT INTO order_items
+                (
+                    order_id,
+                    medicine_id,
+                    quantity,
+                    unit_price
+                )
+                VALUES($1,$2,$3,$4)
+                RETURNING *;
+                `,
+                [
+                    order.id,
+                    medicineId,
+                    quantity,
+                    medicine.price,
+                ]
             );
 
-        
-        const substituteOtherBranch =
-            await findSubstituteInOtherBranch(
-                branchId,
+            const orderItem = orderItemResult.rows[0];
+
+            try {
+                if (medicine.requires_prescription) {
+                    await reserveStock(
+                        client,
+                        branchId,
+                        medicineId,
+                        quantity
+                    );
+                } else {
+                    await decrementStock(
+                        client,
+                        branchId,
+                        medicineId,
+                        quantity
+                    );
+                }
+            } catch (error) {
+                if (error.message === "Insufficient stock") {
+                    const alternativeBranch =
+                        await findAlternativeBranch(
+                            branchId,
+                            medicineId,
+                            quantity
+                        );
+
+                    const substituteMedicine =
+                        await findSubstituteMedicine(
+                            branchId,
+                            medicineId,
+                            quantity
+                        );
+
+                    const substituteOtherBranch =
+                        await findSubstituteInOtherBranch(
+                            branchId,
+                            medicineId,
+                            quantity
+                        );
+
+                    if (
+                        alternativeBranch ||
+                        substituteMedicine ||
+                        substituteOtherBranch
+                    ) {
+                        await client.query("COMMIT");
+
+                        const stockError = new Error("OUT_OF_STOCK");
+                        stockError.orderId = order.id;
+                        stockError.orderItemId = orderItem.id;
+                        stockError.alternativeBranch = alternativeBranch;
+                        stockError.substituteMedicine = substituteMedicine;
+                        stockError.substituteOtherBranch = substituteOtherBranch;
+                        stockError.transactionCommitted = true;
+
+                        throw stockError;
+                    }
+
+                    throw new Error(
+                        "Medicine is unavailable in all branches and no substitute exists."
+                    );
+                }
+
+                throw error;
+            }
+
+            orderedItems.push({
+                orderItemId: orderItem.id,
                 medicineId,
-                quantity
+                quantity,
+                unitPrice: medicine.price,
+                requiresPrescription: medicine.requires_prescription,
+            });
+        }
+
+        if (hasPrescriptionItem) {
+            await client.query(
+                `
+                UPDATE orders
+                SET status = $1
+                WHERE id = $2;
+                `,
+                [ORDER_STATUS_PENDING_REVIEW, order.id]
+            );
+            order.status = ORDER_STATUS_PENDING_REVIEW;
+        }
+
+        let prescription = null;
+        if (prescriptionFileUrl) {
+            const rxItem = orderedItems.find((it) => it.requiresPrescription);
+            if (!rxItem) {
+                throw new Error("No prescription item found for upload.");
+            }
+
+            const prescriptionResult = await client.query(
+                `
+                INSERT INTO prescriptions (order_item_id, file_url)
+                VALUES ($1, $2)
+                RETURNING *;
+                `,
+                [rxItem.orderItemId, prescriptionFileUrl]
             );
 
-        
-
-        if (
-    alternativeBranch ||
-    substituteMedicine ||
-    substituteOtherBranch
-) {
-
-    await client.query("COMMIT");
-
-    const stockError = new Error("OUT_OF_STOCK");
-
-    stockError.orderId = order.id;
-    stockError.orderItemId = orderItem.id;
-
-    stockError.alternativeBranch = alternativeBranch;
-    stockError.substituteMedicine = substituteMedicine;
-    stockError.substituteOtherBranch = substituteOtherBranch;
-
-    stockError.transactionCommitted = true;
-
-    throw stockError;
-}
-
-throw new Error("Medicine is unavailable in all branches and no substitute exists.");
-    }
-
-    throw error;
-}
-
-    orderedItems.push({
-    medicineId,
-    quantity,
-    unitPrice: medicine.price
-});
-}
+            prescription = prescriptionResult.rows[0];
+        }
 
         await client.query("COMMIT");
 
         return {
-    success: true,
-    message: "Order placed successfully",
-    order,
-    items: orderedItems
-};
-
+            success: true,
+            message: "Order placed successfully",
+            order,
+            items: orderedItems,
+            prescription,
+        };
     } catch (err) {
+        if (!err.transactionCommitted) {
+            await client.query("ROLLBACK");
+        }
 
-    if (!err.transactionCommitted) {
-        await client.query("ROLLBACK");
-    }
-
-    throw err;
-
-
+        throw err;
     } finally {
         client.release();
     }
 };
 const validTransitions = {
     "Placed": "Verified",
+    "Pending Pharmacist Review": "Verified",
     "Verified": "Packed",
     "Packed": "Out for Delivery",
-    "Out for Delivery": "Delivered"
+    "Out for Delivery": "Delivered",
 };
 
 const updateOrderStatus = async (orderId, newStatus) => {
@@ -288,26 +318,48 @@ const cancelOrder = async (orderId, customerId) => {
             );
         }
 
-        // Fetch all order items
+        // Fetch all order items including prescription requirements
         const itemsResult = await client.query(
             `
-            SELECT medicine_id, quantity
-            FROM order_items
-            WHERE order_id = $1;
+            SELECT oi.medicine_id,
+                   oi.quantity,
+                   m.requires_prescription
+            FROM order_items oi
+            JOIN medicines m
+              ON oi.medicine_id = m.id
+            WHERE oi.order_id = $1;
             `,
             [orderId]
         );
 
-        // Restore stock
+        // Restore stock for each item depending on order state and prescription requirement
         for (const item of itemsResult.rows) {
-           await releaseReservedStock(
-    client,
-    order.branch_id,
-    item.medicine_id,
-    item.quantity
-);
+            if (item.requires_prescription) {
+                if (order.status === "Placed") {
+                    await releaseReservedStock(
+                        client,
+                        order.branch_id,
+                        item.medicine_id,
+                        item.quantity
+                    );
+                } else {
+                    await restoreStock(
+                        client,
+                        order.branch_id,
+                        item.medicine_id,
+                        item.quantity
+                    );
+                }
+            } else {
+                await restoreStock(
+                    client,
+                    order.branch_id,
+                    item.medicine_id,
+                    item.quantity
+                );
+            }
         }
-   
+
         // Update order status
         const updatedOrder = await client.query(
             `

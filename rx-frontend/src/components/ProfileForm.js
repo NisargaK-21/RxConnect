@@ -5,6 +5,7 @@ import {
   getProfile,
   updateProfile,
 } from "@/services/user.service";
+import { getToken } from "@/utils/auth";
 
 export default function ProfileForm() {
 
@@ -12,32 +13,43 @@ export default function ProfileForm() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
   async function fetchProfile() {
     try {
-
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       const res = await getProfile(token);
 
       setName(res.data.name);
       setPhone(res.data.phone || "");
       setAddress(res.data.address || "");
-
     } catch (err) {
       alert("Failed to load profile");
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = getToken();
+        const res = await getProfile(token);
+        if (cancelled) return;
+        setName(res.data.name);
+        setPhone(res.data.phone || "");
+        setAddress(res.data.address || "");
+      } catch (err) {
+        if (!cancelled) alert("Failed to load profile");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
 
     try {
 
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       await updateProfile(
         {
