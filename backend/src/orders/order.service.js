@@ -358,6 +358,12 @@ const cancelOrder = async (orderId, customerId) => {
                     item.quantity
                 );
             }
+           await restoreStock(
+    client,
+    order.branch_id,
+    item.medicine_id,
+    item.quantity
+);
         }
 
         // Update order status
