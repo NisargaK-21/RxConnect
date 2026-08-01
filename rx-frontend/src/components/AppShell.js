@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getUser, logout } from "@/utils/auth";
 import { getNavForRole } from "@/lib/navigation";
+import { useCart } from "@/context/CartContext";
 
 export default function AppShell({ children, variant = "app" }) {
   const pathname = usePathname();
@@ -12,6 +13,8 @@ export default function AppShell({ children, variant = "app" }) {
   const [user, setUser] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { cartCount } = useCart();
+
 
   useEffect(() => {
     setUser(getUser());
@@ -109,7 +112,25 @@ export default function AppShell({ children, variant = "app" }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/customer"
+              className="relative flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:bg-teal-50/50 hover:text-teal-700 transition-all shadow-sm btn-press focus-ring"
+            >
+              <svg className="w-5 h-5 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1" />
+                <circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </svg>
+              <span className="hidden sm:inline">Cart</span>
+              {cartCount > 0 && (
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 px-1.5 text-xs font-bold text-white shadow-sm shadow-teal-500/30">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+
             {user ? (
+
               <div className="flex items-center gap-3">
                 <div className="hidden sm:flex flex-col text-right leading-tight">
                   <span className="text-sm font-semibold text-slate-800">

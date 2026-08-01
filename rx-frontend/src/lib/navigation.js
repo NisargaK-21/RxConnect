@@ -125,6 +125,7 @@ const ROLE_NAV = {
     { href: "/profile", label: "Profile", icon: ICONS.profile },
   ],
   customer: [
+    { href: "/customer", label: "Shop & Cart", icon: ICONS.cart },
     { href: "/catalog", label: "Medicine Catalog", icon: ICONS.catalog },
     { href: "/order-tracking", label: "My Orders", icon: ICONS.tracking },
     { href: "/profile", label: "Profile", icon: ICONS.profile },
