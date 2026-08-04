@@ -1,16 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import AppShell from "@/components/AppShell";
-import StatCard from "@/components/DashboardCards";
-import StatusBadge from "@/components/StatusBadge";
-import EmptyState from "@/components/EmptyState";
-import { SkeletonCard, SkeletonTable } from "@/components/Skeleton";
-import RequireAuth from "@/components/RequireAuth";
-import { api } from "@/lib/api";
-import { ICONS } from "@/lib/navigation";
-import { toast } from "@/components/Toast";
+import DashboardNav from "@/components/DashboardNav";
+import DashboardCards from "@/components/DashboardCards";
+import NotificationList from "@/components/NotificationList";
+import axios from "axios";
+
 
 export default function DashboardPage() {
   return (
@@ -81,8 +76,9 @@ function DashboardContent() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          <StatCard
+      <NotificationList userId={4} />
+      
+       <DashboardCards
             title="Branches"
             value={loading ? null : branches.length}
             icon={ICONS.branches}
