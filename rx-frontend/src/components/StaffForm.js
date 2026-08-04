@@ -7,6 +7,7 @@ import {
   updateStaff,
   deleteStaff,
 } from "@/services/user.service";
+import { getToken } from "@/utils/auth";
 
 import StaffTable from "./StaffTable";
 
@@ -27,7 +28,7 @@ export default function StaffForm() {
 
   async function fetchStaff() {
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       const res = await getStaff(token);
 
@@ -50,7 +51,7 @@ export default function StaffForm() {
 
   async function handleDelete(id) {
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       await deleteStaff(id, token);
 
@@ -66,7 +67,7 @@ export default function StaffForm() {
     e.preventDefault();
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
       if (editingId) {
         await updateStaff(

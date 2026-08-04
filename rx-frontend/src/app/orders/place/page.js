@@ -1,136 +1,116 @@
 "use client";
 
+import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import AppShell from "@/components/AppShell";
+import RequireAuth from "@/components/RequireAuth";
+import { api } from "@/lib/api";
+import { getUser } from "@/utils/auth";
+import { toast } from "@/components/Toast";
+import { ICONS } from "@/lib/navigation";
 
 export default function PlaceOrderPage() {
+  return (
+    <RequireAuth allowedRoles={["customer", "admin", "staff", "pharmacist"]}>
+      <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading order form...</div>}>
+        <PlaceOrderInner />
+      </Suspense>
+    </RequireAuth>
+  );
+}
+
+function PlaceOrderInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const user = getUser();
 
-  const medicineId = Number(searchParams.get("medicineId"));
-  const branchId = Number(searchParams.get("branchId"));
+  const medicineId = Number(searchParams.get("medicineId") || 0);
+  const branchId = Number(searchParams.get("branchId") || 0);
+  const customerId = user?.id || 1;
 
-  // Change this later when login is implemented
-  const user = JSON.parse(localStorage.getItem("user"));
-
-const customerId = user.id;
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
 
   const placeOrder = async () => {
     if (quantity < 1) {
-      alert("Quantity should be at least 1");
+      toast("Quantity should be at least 1", { variant: "warning" });
       return;
     }
 
     try {
       setLoading(true);
-
-      const token = localStorage.getItem("token");
-
-const response = await fetch("http://localhost:5000/orders", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-        body: JSON.stringify({
-          customerId,
-          branchId,
-          items: [
-            {
-              medicineId,
-              quantity,
-            },
-          ],
-        }),
+      const response = await api.post("/orders", {
+        customerId,
+        branchId: branchId || 1,
+        items: [
+          {
+            medicineId,
+            quantity,
+          },
+        ],
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-  alert("Order placed successfully!");
-
-  router.push(`/orders?customerId=${customerId}`);
-}
-else if (data.substitutionRequired) {
-
-  localStorage.setItem(
-    "substitutionData",
-    JSON.stringify(data)
-  );
-
-  router.push("/orders/substitution");
-}
-else {
-  alert(data.message || "Failed to place order");
-}
+      const data = response.data;
+      if (data) {
+        toast("Order placed successfully!", { variant: "success" });
+        setTimeout(() => router.push(`/order-tracking`), 700);
+      }
     } catch (error) {
-      console.error(error);
-      alert("Something went wrong");
+      if (error?.response?.status === 409 && error.response.data?.substitutionRequired) {
+        localStorage.setItem("substitutionData", JSON.stringify(error.response.data));
+        router.push("/orders/substitution");
+      } else {
+        toast(error?.response?.data?.message || "Failed to place order", { variant: "error" });
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: "30px" }}>
-      <h1>Place Order</h1>
+    <AppShell activeRoute="/orders">
+      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6 animate-fade-in-up">
+        <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <span className="w-5 h-5 text-teal-600" dangerouslySetInnerHTML={{ __html: ICONS.orders }} />
+          Confirm Order
+        </h1>
 
-      <hr />
+        <div className="space-y-3 p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Medicine ID</span>
+            <span className="font-mono font-bold text-slate-900">#{medicineId || "Not specified"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Branch ID</span>
+            <span className="font-mono font-bold text-slate-900">#{branchId || "Main Branch"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Customer ID</span>
+            <span className="font-mono font-bold text-slate-900">#{customerId}</span>
+          </div>
+        </div>
 
-      <br />
+        <div>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+            Quantity
+          </label>
+          <input
+            type="number"
+            min="1"
+            value={quantity}
+            onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+            className="input-field w-full"
+          />
+        </div>
 
-      <p>
-        <strong>Medicine ID :</strong> {medicineId}
-      </p>
-
-      <p>
-        <strong>Branch ID :</strong> {branchId}
-      </p>
-
-      <br />
-
-      <label>Customer ID</label>
-
-      <br />
-
-      
-      <br />
-
-      <label>Quantity</label>
-
-      <br />
-
-      <input
-        type="number"
-        min="1"
-        value={quantity}
-        onChange={(e) => setQuantity(Number(e.target.value))}
-        style={{
-          width: "250px",
-          padding: "10px",
-          marginTop: "5px",
-          marginBottom: "20px",
-        }}
-      />
-
-      <br />
-
-      <button
-        onClick={placeOrder}
-        disabled={loading}
-        style={{
-          padding: "12px 25px",
-          backgroundColor: "#2563eb",
-          color: "white",
-          border: "none",
-          borderRadius: "5px",
-          cursor: "pointer",
-        }}
-      >
-        {loading ? "Placing Order..." : "Place Order"}
-      </button>
-    </div>
+        <button
+          onClick={placeOrder}
+          disabled={loading}
+          className="w-full py-3 px-4 text-sm font-bold text-white bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl shadow-lg shadow-teal-500/25 hover:from-teal-600 hover:to-emerald-600 btn-press transition disabled:opacity-50"
+        >
+          {loading ? "Placing Order..." : "Confirm & Place Order"}
+        </button>
+      </div>
+    </AppShell>
   );
 }
