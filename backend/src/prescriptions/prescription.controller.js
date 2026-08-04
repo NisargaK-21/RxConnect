@@ -178,6 +178,26 @@ const getVerificationLogsByOrder = async (req, res) => {
     });
   }
 };
+
+const releaseExpiredHolds = async (req, res) => {
+  try {
+    const timeoutMinutes = parseInt(req.body.timeoutMinutes) || 60;
+    const releasedOrders =
+      await prescriptionService.releaseExpiredPrescriptionHolds(timeoutMinutes);
+
+    return res.status(200).json({
+      message: "Expired prescription holds released successfully",
+      releasedOrdersCount: releasedOrders.length,
+      releasedOrders,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
@@ -185,5 +205,5 @@ module.exports = {
   reviewPrescription,
   updateStandingApproval,
   getVerificationLogsByOrder,
-
+  releaseExpiredHolds,
 };
