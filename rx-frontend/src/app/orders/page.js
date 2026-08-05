@@ -155,6 +155,34 @@ function OrdersContent() {
     setItems((prev) => prev.filter((it) => it.key !== key));
   }
 
+  const normalizeSuggestion = (sub) => {
+    if (!sub) return {};
+    if (
+      sub.branchSuggestion ||
+      sub.medicineSuggestion ||
+      sub.medicineOtherBranchSuggestion
+    ) {
+      return sub;
+    }
+
+    const branchSuggestion = sub.suggestionOptions?.find(
+      (opt) => opt.type === "same_medicine_other_branch"
+    );
+    const medicineSuggestion = sub.suggestionOptions?.find(
+      (opt) => opt.type === "substitute_same_branch"
+    );
+    const medicineOtherBranchSuggestion = sub.suggestionOptions?.find(
+      (opt) => opt.type === "substitute_other_branch"
+    );
+
+    return {
+      ...sub,
+      branchSuggestion,
+      medicineSuggestion,
+      medicineOtherBranchSuggestion,
+    };
+  };
+
   const subtotal = items.reduce(
     (sum, it) => sum + (it.quantity || 0) * Number(it.unit_price || 0),
     0
@@ -177,8 +205,14 @@ function OrdersContent() {
       return;
     }
 
-    const resolvedBranchId = substituteBranchId ?? (branchId ? Number(branchId) : null);
-    if (!resolvedBranchId) {
+    const resolvedBranchId =
+      substituteBranchId != null
+        ? Number(substituteBranchId)
+        : branchId
+        ? Number(branchId)
+        : null;
+
+    if (!resolvedBranchId || Number.isNaN(resolvedBranchId)) {
       toast("Branch selection is required", { variant: "error" });
       return;
     }
@@ -212,11 +246,26 @@ function OrdersContent() {
           medicineOtherBranchSuggestion: data.medicineOtherBranchSuggestion,
           originalBranchId: data.originalBranchId,
           originalMedicineId: data.originalMedicineId,
+          branchId: data.branchId,
+          branchName: data.branchName,
+          suggestionOptions: data.suggestionOptions || [],
         };
+        const branchSuggestionFromPayload =
+          rawSuggestion.branchSuggestion ||
+          (rawSuggestion.branchId
+            ? {
+                branchId: rawSuggestion.branchId,
+                branchName: rawSuggestion.branchName,
+              }
+            : null);
         const suggestionData = {
           ...rawSuggestion,
-          branchId: rawSuggestion.branchId || rawSuggestion.branchSuggestion?.branchId,
-          branchName: rawSuggestion.branchName || rawSuggestion.branchSuggestion?.branchName,
+          branchSuggestion: branchSuggestionFromPayload,
+          branchId:
+            rawSuggestion.branchId || branchSuggestionFromPayload?.branchId,
+          branchName:
+            rawSuggestion.branchName || branchSuggestionFromPayload?.branchName,
+          suggestionOptions: rawSuggestion.suggestionOptions || [],
         };
         setSuggestion(suggestionData);
         setSubstitutionPending({
@@ -264,8 +313,44 @@ function OrdersContent() {
     }
   }
 
+  function applySubstituteMedicine() {
+    const normalized = normalizeSuggestion(suggestion);
+    if (!normalized?.medicineSuggestion || !normalized?.originalMedicineId) return;
+
+    setItems((prev) =>
+      prev.map((item) =>
+        item.medicineId === normalized.originalMedicineId
+          ? {
+              ...item,
+              medicineId: normalized.medicineSuggestion.id,
+              name: normalized.medicineSuggestion.name,
+              unit_price: Number(normalized.medicineSuggestion.price || item.unit_price),
+            }
+          : item
+      )
+    );
+
+    toast("Substitute medicine applied to the current order.", { variant: "success" });
+    setSuggestion(null);
+    setPendingPayload(null);
+    setSubstitutionPending(null);
+  }
+
   const linesCount = items.length;
   const totalQty = items.reduce((s, it) => s + (it.quantity || 0), 0);
+  const normalizedSuggestion = normalizeSuggestion(suggestion);
+  const branchSuggestion =
+    normalizedSuggestion.branchSuggestion ||
+    (normalizedSuggestion.branchId
+      ? {
+          branchId: normalizedSuggestion.branchId,
+          branchName: normalizedSuggestion.branchName,
+        }
+      : null);
+  const suggestionBranchId = branchSuggestion?.branchId;
+  const suggestionBranchName = branchSuggestion?.branchName;
+  const substituteMedicineSuggestion = normalizedSuggestion.medicineSuggestion;
+  const otherBranchMedicineSuggestion = normalizedSuggestion.medicineOtherBranchSuggestion;
 
   return (
     <AppShell activeRoute="/orders">
@@ -553,23 +638,21 @@ function OrdersContent() {
                 </div>
               </div>
 
-              {suggestion && (suggestion.branchSuggestion || suggestion.branchId) ? (
+              {branchSuggestion ? (
                 <div className="mt-5 p-4 rounded-2xl border border-amber-200 bg-amber-50 animate-fade-in-up">
                   <div className="text-xs font-bold text-amber-900 mb-1">
                     Branch Stock Alert
                   </div>
                   <p className="text-xs text-amber-800 mb-3">
                     Item available at branch:{" "}
-                    <strong>
-                      {suggestion.branchName || suggestion.branchSuggestion?.branchName || `#${suggestion.branchId || suggestion.branchSuggestion?.branchId}`}
-                    </strong>
+                    <strong>{suggestionBranchName || `#${suggestionBranchId}`}</strong>
                   </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        const targetBranch = suggestion.branchId || suggestion.branchSuggestion?.branchId;
-                        if (targetBranch) {
+                        const targetBranch = Number(suggestionBranchId);
+                        if (!Number.isNaN(targetBranch)) {
                           setBranchId(String(targetBranch));
                           placeOrder(targetBranch);
                         }
@@ -589,21 +672,67 @@ function OrdersContent() {
                     </button>
                   </div>
                 </div>
-              ) : suggestion ? (
-                <div className="mt-5 p-4 rounded-2xl border border-slate-200 bg-slate-50 animate-fade-in-up">
-                  <div className="text-xs font-bold text-slate-900 mb-1">
-                    Substitution Available
+              ) : null}
+
+              {substituteMedicineSuggestion ? (
+                <div className="mt-5 p-4 rounded-2xl border border-emerald-200 bg-emerald-50 animate-fade-in-up">
+                  <div className="text-xs font-bold text-emerald-900 mb-1">
+                    Substitute Medicine Available in Current Branch
                   </div>
-                  <p className="text-xs text-slate-800 mb-3">
-                    A substitute medicine is available, but the same branch does not have stock.
+                  <p className="text-xs text-slate-800 mb-2">
+                    {substituteMedicineSuggestion.name} · ₹{substituteMedicineSuggestion.price}
+                  </p>
+                  <p className="text-xs text-slate-600 mb-4">
+                    Available quantity: {substituteMedicineSuggestion.availableQuantity}
                   </p>
                   <button
                     type="button"
-                    onClick={requestSubstitution}
+                    onClick={applySubstituteMedicine}
                     disabled={submitting}
-                    className="w-full py-2 px-3 text-xs font-bold text-amber-900 bg-white border border-amber-200 rounded-xl hover:bg-amber-100"
+                    className="w-full py-2 px-3 text-xs font-bold text-white bg-emerald-600 rounded-xl shadow-sm hover:bg-emerald-700"
                   >
-                    Request Approval
+                    Use Substitute Medicine
+                  </button>
+                </div>
+              ) : null}
+
+              {otherBranchMedicineSuggestion ? (
+                <div className="mt-5 p-4 rounded-2xl border border-purple-200 bg-purple-50 animate-fade-in-up">
+                  <div className="text-xs font-bold text-purple-900 mb-1">
+                    Substitute Medicine Available at Another Branch
+                  </div>
+                  <p className="text-xs text-slate-800 mb-2">
+                    {otherBranchMedicineSuggestion.name} · ₹{otherBranchMedicineSuggestion.price}
+                  </p>
+                  <p className="text-xs text-slate-600 mb-2">
+                    Branch: {otherBranchMedicineSuggestion.branchName || `#${otherBranchMedicineSuggestion.branchId}`}
+                  </p>
+                  <p className="text-xs text-slate-600 mb-4">
+                    Available quantity: {otherBranchMedicineSuggestion.availableQuantity}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!otherBranchMedicineSuggestion.branchId || !otherBranchMedicineSuggestion.id) return;
+                      setBranchId(String(otherBranchMedicineSuggestion.branchId));
+                      setItems((prev) =>
+                        prev.map((item) =>
+                          item.medicineId === suggestion.originalMedicineId
+                            ? {
+                                ...item,
+                                medicineId: otherBranchMedicineSuggestion.id,
+                                name: otherBranchMedicineSuggestion.name,
+                                unit_price: Number(otherBranchMedicineSuggestion.price || item.unit_price),
+                              }
+                            : item
+                        )
+                      );
+                      toast("Switched to substitute medicine at the alternate branch.", { variant: "success" });
+                    }}
+                    disabled={submitting}
+                    className="w-full py-2 px-3 text-xs font-bold text-white bg-purple-600 rounded-xl shadow-sm hover:bg-purple-700"
+                  >
+                    Use This Substitute Option
                   </button>
                 </div>
               ) : null}
