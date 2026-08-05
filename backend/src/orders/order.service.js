@@ -61,7 +61,33 @@ const placeOrder = async (
 
             const medicine = medicineResult.rows[0];
 
+            let isStandingApproved = false;
+            let standingPrescription = null;
+
             if (medicine.requires_prescription) {
+                try {
+                    const standingResult = await client.query(
+                        `
+                        SELECT sp.*, p.file_url
+                        FROM standing_prescriptions sp
+                        JOIN prescriptions p ON sp.prescription_id = p.id
+                        WHERE sp.customer_id = $1
+                          AND sp.medicine_id = $2
+                          AND sp.is_active = TRUE
+                        LIMIT 1;
+                        `,
+                        [customerId, medicineId]
+                    );
+                    if (standingResult.rowCount > 0) {
+                        isStandingApproved = true;
+                        standingPrescription = standingResult.rows[0];
+                    }
+                } catch (err) {
+                    isStandingApproved = false;
+                }
+            }
+
+            if (medicine.requires_prescription && !isStandingApproved) {
                 hasPrescriptionItem = true;
             }
 
@@ -87,8 +113,18 @@ const placeOrder = async (
 
             const orderItem = orderItemResult.rows[0];
 
+            if (isStandingApproved && standingPrescription) {
+                await client.query(
+                    `
+                    INSERT INTO prescriptions (order_item_id, file_url, status, reviewed_by, reviewed_at)
+                    VALUES ($1, $2, 'approved', $3, CURRENT_TIMESTAMP);
+                    `,
+                    [orderItem.id, standingPrescription.file_url, standingPrescription.approved_by]
+                );
+            }
+
             try {
-                if (medicine.requires_prescription) {
+                if (medicine.requires_prescription && !isStandingApproved) {
                     await reserveStock(
                         client,
                         branchId,
@@ -320,16 +356,21 @@ const cancelOrder = async (orderId, customerId) => {
             );
         }
 
-        // Fetch all order items including prescription requirements
+        // Fetch all order items including prescription requirements and approval status
         const itemsResult = await client.query(
             `
-            SELECT oi.medicine_id,
+            SELECT oi.id,
+                   oi.medicine_id,
                    oi.quantity,
-                   m.requires_prescription
+                   m.requires_prescription,
+                   COALESCE(BOOL_OR(p.status = 'approved'), FALSE) AS has_approved_prescription
             FROM order_items oi
             JOIN medicines m
               ON oi.medicine_id = m.id
-            WHERE oi.order_id = $1;
+            LEFT JOIN prescriptions p
+              ON p.order_item_id = oi.id
+            WHERE oi.order_id = $1
+            GROUP BY oi.id, oi.medicine_id, oi.quantity, m.requires_prescription;
             `,
             [orderId]
         );
@@ -337,15 +378,18 @@ const cancelOrder = async (orderId, customerId) => {
         // Restore stock for each item depending on order state and prescription requirement
         for (const item of itemsResult.rows) {
             if (item.requires_prescription) {
-                if (order.status === "Placed") {
-                    await releaseReservedStock(
+                const shouldRestoreStock =
+                    order.status === "Verified" || item.has_approved_prescription;
+
+                if (shouldRestoreStock) {
+                    await restoreStock(
                         client,
                         order.branch_id,
                         item.medicine_id,
                         item.quantity
                     );
                 } else {
-                    await restoreStock(
+                    await releaseReservedStock(
                         client,
                         order.branch_id,
                         item.medicine_id,
@@ -360,12 +404,6 @@ const cancelOrder = async (orderId, customerId) => {
                     item.quantity
                 );
             }
-           await restoreStock(
-    client,
-    order.branch_id,
-    item.medicine_id,
-    item.quantity
-);
         }
 
         // Update order status
