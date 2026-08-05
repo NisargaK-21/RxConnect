@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
+import { getUser } from "@/utils/auth";
 
 export default function SubstitutionTestPage() {
  const router = useRouter();
@@ -10,6 +12,8 @@ export default function SubstitutionTestPage() {
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
+  const user = getUser();
+  const customerId = user?.id;
 
   const [substitution, setSubstitution] = useState(null);
 
@@ -26,28 +30,22 @@ useEffect(() => {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/orders/${substitution.orderId}/accept-substitution`,
+      const response = await api.patch(
+        `/orders/${substitution.orderId}/accept-substitution`,
         {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            orderItemId: substitution.orderItemId,
-            branchId: selectedBranchId,
-            medicineId: selectedMedicineId,
-          }),
+          orderItemId: substitution.orderItemId,
+          branchId: selectedBranchId,
+          medicineId: selectedMedicineId,
         }
       );
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok) {
+      if (response.status === 200) {
         setMessage(data.message || "Substitution accepted successfully.");
         setMessageType("success");
         localStorage.removeItem("substitutionData");
-router.push("/orders?customerId=3");
+        router.push(`/orders?customerId=${customerId || 1}`);
       } else {
         setMessage(data.message || "Failed to accept substitution.");
         setMessageType("error");
@@ -68,26 +66,20 @@ router.push("/orders?customerId=3");
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/orders/${substitution.orderId}/reject-substitution`,
+      const response = await api.patch(
+        `/orders/${substitution.orderId}/reject-substitution`,
         {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            orderItemId: substitution.orderItemId,
-          }),
+          orderItemId: substitution.orderItemId,
         }
       );
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok) {
+      if (response.status === 200) {
         setMessage(data.message || "Substitution rejected.");
         setMessageType("success");
         localStorage.removeItem("substitutionData");
-router.push("/orders?customerId=3");
+        router.push(`/orders?customerId=${customerId || 1}`);
       } else {
         setMessage(data.message || "Failed to reject substitution.");
         setMessageType("error");

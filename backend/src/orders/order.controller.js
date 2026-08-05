@@ -28,18 +28,25 @@ const createOrder = async (req, res) => {
 
         if (err.message === "OUT_OF_STOCK") {
 
-            return res.status(409).json({
+            const suggestion = {
+          branchSuggestion: err.alternativeBranch,
+          medicineSuggestion: err.substituteMedicine,
+          medicineOtherBranchSuggestion: err.substituteOtherBranch,
+          originalBranchId: err.originalBranchId,
+          originalMedicineId: err.originalMedicineId,
+          branchId: err.alternativeBranch?.branchId,
+          branchName: err.alternativeBranch?.branchName,
+        };
+
+        return res.status(409).json({
                 success: false,
                 substitutionRequired: true,
                 message: "Medicine is out of stock.",
 
                 orderId: err.orderId,
                 orderItemId: err.orderItemId,
-
-                branchSuggestion: err.alternativeBranch,
-                medicineSuggestion: err.substituteMedicine,
-                medicineOtherBranchSuggestion:
-                    err.substituteOtherBranch
+                ...suggestion,
+                suggestion,
             });
         }
 

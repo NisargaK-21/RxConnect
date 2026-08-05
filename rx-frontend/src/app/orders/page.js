@@ -167,7 +167,7 @@ function OrdersContent() {
       return;
     }
 
-    if (!branchId && !substituteBranchId) {
+    if (!branchId && substituteBranchId == null) {
       toast("Branch selection is required", { variant: "error" });
       return;
     }
@@ -177,12 +177,18 @@ function OrdersContent() {
       return;
     }
 
+    const resolvedBranchId = substituteBranchId ?? (branchId ? Number(branchId) : null);
+    if (!resolvedBranchId) {
+      toast("Branch selection is required", { variant: "error" });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const payload = {
         customerId: Number(activeCustomerId),
-        branchId: Number(substituteBranchId || branchId),
+        branchId: Number(resolvedBranchId),
         items: items.map(({ medicineId, quantity }) => ({ medicineId, quantity })),
       };
 
@@ -199,15 +205,27 @@ function OrdersContent() {
     } catch (err) {
       const status = err?.response?.status;
       const data = err?.response?.data || {};
-      if (status === 409 && data.suggestion) {
-        setSuggestion(data.suggestion);
+      if (status === 409 && data.substitutionRequired) {
+        const rawSuggestion = data.suggestion || {
+          branchSuggestion: data.branchSuggestion,
+          medicineSuggestion: data.medicineSuggestion,
+          medicineOtherBranchSuggestion: data.medicineOtherBranchSuggestion,
+          originalBranchId: data.originalBranchId,
+          originalMedicineId: data.originalMedicineId,
+        };
+        const suggestionData = {
+          ...rawSuggestion,
+          branchId: rawSuggestion.branchId || rawSuggestion.branchSuggestion?.branchId,
+          branchName: rawSuggestion.branchName || rawSuggestion.branchSuggestion?.branchName,
+        };
+        setSuggestion(suggestionData);
         setSubstitutionPending({
           payload: {
             customerId: Number(customerId),
             branchId: Number(branchId),
             items: items.map(({ medicineId, quantity }) => ({ medicineId, quantity })),
           },
-          suggestion: data.suggestion,
+          suggestion: suggestionData,
         });
         setPendingPayload({
           customerId: Number(customerId),
@@ -535,19 +553,27 @@ function OrdersContent() {
                 </div>
               </div>
 
-              {suggestion && (
+              {suggestion && (suggestion.branchSuggestion || suggestion.branchId) ? (
                 <div className="mt-5 p-4 rounded-2xl border border-amber-200 bg-amber-50 animate-fade-in-up">
                   <div className="text-xs font-bold text-amber-900 mb-1">
                     Branch Stock Alert
                   </div>
                   <p className="text-xs text-amber-800 mb-3">
                     Item available at branch:{" "}
-                    <strong>{suggestion.branchName || `#${suggestion.branchId}`}</strong>
+                    <strong>
+                      {suggestion.branchName || suggestion.branchSuggestion?.branchName || `#${suggestion.branchId || suggestion.branchSuggestion?.branchId}`}
+                    </strong>
                   </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => placeOrder(suggestion.branchId)}
+                      onClick={() => {
+                        const targetBranch = suggestion.branchId || suggestion.branchSuggestion?.branchId;
+                        if (targetBranch) {
+                          setBranchId(String(targetBranch));
+                          placeOrder(targetBranch);
+                        }
+                      }}
                       disabled={submitting}
                       className="flex-1 py-2 px-3 text-xs font-bold text-white bg-teal-600 rounded-xl shadow-sm hover:bg-teal-700"
                     >
@@ -563,7 +589,24 @@ function OrdersContent() {
                     </button>
                   </div>
                 </div>
-              )}
+              ) : suggestion ? (
+                <div className="mt-5 p-4 rounded-2xl border border-slate-200 bg-slate-50 animate-fade-in-up">
+                  <div className="text-xs font-bold text-slate-900 mb-1">
+                    Substitution Available
+                  </div>
+                  <p className="text-xs text-slate-800 mb-3">
+                    A substitute medicine is available, but the same branch does not have stock.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={requestSubstitution}
+                    disabled={submitting}
+                    className="w-full py-2 px-3 text-xs font-bold text-amber-900 bg-white border border-amber-200 rounded-xl hover:bg-amber-100"
+                  >
+                    Request Approval
+                  </button>
+                </div>
+              ) : null}
 
               <button
                 type="button"

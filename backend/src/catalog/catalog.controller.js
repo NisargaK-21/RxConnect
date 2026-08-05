@@ -29,14 +29,7 @@ const fetchMedicineById = async (req, res) => {
     const { id } = req.params;
     const { branchId } = req.query;
 
-    if (!branchId) {
-      return res.status(400).json({
-        success: false,
-        message: "branchId is required",
-      });
-    }
-
-    const medicine = await getMedicineById(id, branchId);
+    const medicine = await getMedicineById(id, branchId || null);
 
     if (!medicine) {
       return res.status(404).json({
