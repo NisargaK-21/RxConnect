@@ -422,11 +422,94 @@ const getVerificationLogsByOrder = async (orderId) => {
   return rows;
 };
 
+const releaseExpiredPrescriptionHolds = async (timeoutMinutes = 60) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const expiredResult = await client.query(
+      `
+      SELECT
+        p.id AS prescription_id,
+        p.order_item_id,
+        oi.order_id,
+        oi.medicine_id,
+        oi.quantity,
+        o.branch_id,
+        o.customer_id
+      FROM prescriptions p
+      JOIN order_items oi
+        ON p.order_item_id = oi.id
+      JOIN orders o
+        ON oi.order_id = o.id
+      WHERE p.status = 'pending'
+        AND o.status = 'Pending Pharmacist Review'
+        AND p.created_at <= NOW() - ($1 || ' minutes')::INTERVAL;
+      `,
+      [timeoutMinutes]
+    );
+
+    const releasedOrders = [];
+
+    for (const row of expiredResult.rows) {
+      await releaseReservedStock(
+        client,
+        row.branch_id,
+        row.medicine_id,
+        row.quantity
+      );
+
+      await client.query(
+        `
+        UPDATE prescriptions
+        SET status = 'expired',
+            reviewed_at = CURRENT_TIMESTAMP
+        WHERE id = $1;
+        `,
+        [row.prescription_id]
+      );
+
+      await client.query(
+        `
+        UPDATE orders
+        SET status = 'Cancelled',
+            status_updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1;
+        `,
+        [row.order_id]
+      );
+
+      await notificationService.createNotification({
+        user_id: row.customer_id,
+        type: "PRESCRIPTION_EXPIRED",
+        payload: {
+          orderId: row.order_id,
+          prescriptionId: row.prescription_id,
+          message:
+            "Your prescription review timed out. The reserved stock has been released and your order has been cancelled.",
+        },
+      });
+
+      releasedOrders.push(row.order_id);
+    }
+
+    await client.query("COMMIT");
+    return releasedOrders;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
- uploadPrescription,
+  uploadPrescription,
   getPrescriptionById,
   getPendingPrescriptions,
   reviewPrescription,
   updateStandingApproval,
   getVerificationLogsByOrder,
+  releaseExpiredPrescriptionHolds,
 };
