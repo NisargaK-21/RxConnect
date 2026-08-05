@@ -354,16 +354,21 @@ const cancelOrder = async (orderId, customerId) => {
             );
         }
 
-        // Fetch all order items including prescription requirements
+        // Fetch all order items including prescription requirements and approval status
         const itemsResult = await client.query(
             `
-            SELECT oi.medicine_id,
+            SELECT oi.id,
+                   oi.medicine_id,
                    oi.quantity,
-                   m.requires_prescription
+                   m.requires_prescription,
+                   COALESCE(BOOL_OR(p.status = 'approved'), FALSE) AS has_approved_prescription
             FROM order_items oi
             JOIN medicines m
               ON oi.medicine_id = m.id
-            WHERE oi.order_id = $1;
+            LEFT JOIN prescriptions p
+              ON p.order_item_id = oi.id
+            WHERE oi.order_id = $1
+            GROUP BY oi.id, oi.medicine_id, oi.quantity, m.requires_prescription;
             `,
             [orderId]
         );
@@ -371,15 +376,18 @@ const cancelOrder = async (orderId, customerId) => {
         // Restore stock for each item depending on order state and prescription requirement
         for (const item of itemsResult.rows) {
             if (item.requires_prescription) {
-                if (order.status === "Placed") {
-                    await releaseReservedStock(
+                const shouldRestoreStock =
+                    order.status === "Verified" || item.has_approved_prescription;
+
+                if (shouldRestoreStock) {
+                    await restoreStock(
                         client,
                         order.branch_id,
                         item.medicine_id,
                         item.quantity
                     );
                 } else {
-                    await restoreStock(
+                    await releaseReservedStock(
                         client,
                         order.branch_id,
                         item.medicine_id,
