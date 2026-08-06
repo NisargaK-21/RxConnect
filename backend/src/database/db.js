@@ -8,6 +8,9 @@ const pool = new Pool({
   database: process.env.DB_NAME || "rxconnect",
   user: process.env.DB_USER || "postgres",
   password: String(process.env.DB_PASSWORD || ""),
+  // Allow the connection pool size to be configured (e.g. higher during
+  // concurrency stress tests). Defaults to pg's standard 10.
+  max: parseInt(process.env.DB_POOL_MAX || "10", 10),
 });
 
 module.exports = pool;
