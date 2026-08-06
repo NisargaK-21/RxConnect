@@ -327,6 +327,73 @@ const updateOrderStatus = async (orderId, newStatus) => {
         );
     }
 }
+
+if (newStatus === "Packed") {
+    const itemsResult = await pool.query(
+        `
+        SELECT
+            oi.id,
+            oi.medicine_id,
+            oi.quantity
+        FROM order_items oi
+        WHERE oi.order_id = $1;
+        `,
+        [orderId]
+    );
+
+    for (const item of itemsResult.rows) {
+        const stock = await pool.query(
+            `
+            SELECT quantity, reserved_quantity
+            FROM branch_stock
+            WHERE branch_id = $1
+              AND medicine_id = $2;
+            `,
+            [order.branch_id, item.medicine_id]
+        );
+
+        const available =
+            stock.rowCount > 0
+                ? stock.rows[0].quantity - stock.rows[0].reserved_quantity
+                : 0;
+
+        if (available < item.quantity) {
+            const branchSuggestion =
+                await findAlternativeBranch(
+                    order.branch_id,
+                    item.medicine_id,
+                    item.quantity
+                );
+
+            const medicineSuggestion =
+                await findSubstituteMedicine(
+                    order.branch_id,
+                    item.medicine_id,
+                    item.quantity
+                );
+
+            const medicineOtherBranchSuggestion =
+                await findSubstituteInOtherBranch(
+                    order.branch_id,
+                    item.medicine_id,
+                    item.quantity
+                );
+
+            return {
+                success: false,
+                substitutionRequired: true,
+                message:
+                    "Medicine became unavailable before packing.",
+                orderId,
+                orderItemId: item.id,
+                branchSuggestion,
+                medicineSuggestion,
+                medicineOtherBranchSuggestion,
+            };
+        }
+    }
+}
+
     const updatedOrder = await pool.query(
         `
         UPDATE orders
