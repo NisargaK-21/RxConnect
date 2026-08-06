@@ -45,8 +45,13 @@ export default function SubstitutionPanel({
     }
   };
 
-  const { branchSuggestion, medicineSuggestion, medicineOtherBranchSuggestion } =
-    substitution;
+  const {
+    branchSuggestion,
+    medicineSuggestion,
+    medicineOtherBranchSuggestion,
+    originalBranchId,
+    originalMedicineId,
+  } = substitution;
 
   return (
     <div className="mt-6 space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-5">

@@ -3,6 +3,7 @@ const {
     decrementStock,
     restoreStock,
     findAlternativeBranch,
+    findAlternativeBranchForOrder,
     findSubstituteMedicine,
     findSubstituteInOtherBranch,
     reserveStock,
@@ -141,7 +142,13 @@ const placeOrder = async (
                 }
             } catch (error) {
                 if (error.message === "Insufficient stock") {
-                    const alternativeBranch =
+                    const alternativeBranchForOrder =
+                        await findAlternativeBranchForOrder(
+                            branchId,
+                            items
+                        );
+
+                    const medicineLevelAlternativeBranch =
                         await findAlternativeBranch(
                             branchId,
                             medicineId,
@@ -162,8 +169,11 @@ const placeOrder = async (
                             quantity
                         );
 
+                    const branchSuggestion =
+                        alternativeBranchForOrder || medicineLevelAlternativeBranch;
+
                     if (
-                        alternativeBranch ||
+                        branchSuggestion ||
                         substituteMedicine ||
                         substituteOtherBranch
                     ) {
@@ -172,7 +182,9 @@ const placeOrder = async (
                         const stockError = new Error("OUT_OF_STOCK");
                         stockError.orderId = order.id;
                         stockError.orderItemId = orderItem.id;
-                        stockError.alternativeBranch = alternativeBranch;
+                        stockError.originalBranchId = branchId;
+                        stockError.originalMedicineId = medicineId;
+                        stockError.alternativeBranch = branchSuggestion;
                         stockError.substituteMedicine = substituteMedicine;
                         stockError.substituteOtherBranch = substituteOtherBranch;
                         stockError.transactionCommitted = true;
@@ -562,70 +574,153 @@ const acceptSubstitution = async (
 
         const item = itemResult.rows[0];
         const targetBranchId =
-    newBranchId || order.branch_id;
+            newBranchId || order.branch_id;
 
-const targetMedicineId =
-    newMedicineId || item.medicine_id;
-    const substituteResult = await client.query(
-    `
-    SELECT *
-    FROM medicine_substitutions
-    WHERE medicine_id = $1
-      AND substitute_medicine_id = $2;
-    `,
-    [item.medicine_id, targetMedicineId]
-);
+        const targetMedicineId =
+            newMedicineId || item.medicine_id;
 
-if (
-    targetMedicineId !== item.medicine_id &&
-    substituteResult.rowCount === 0
-) {
-    throw new Error(
-        "Selected medicine is not a valid substitute."
-    );
-}
+        const substituteResult = await client.query(
+            `
+            SELECT *
+            FROM medicine_substitutions
+            WHERE medicine_id = $1
+              AND substitute_medicine_id = $2;
+            `,
+            [item.medicine_id, targetMedicineId]
+        );
 
-    await restoreStock(
-    client,
-    order.branch_id,
-    item.medicine_id,
-    item.quantity
-);
-await decrementStock(
-    client,
-    targetBranchId,
-    targetMedicineId,
-    item.quantity
-);
-await client.query(
-    `
-    UPDATE order_items
-    SET medicine_id = $1,
-        unit_price = (
-            SELECT price
+        if (
+            targetMedicineId !== item.medicine_id &&
+            substituteResult.rowCount === 0
+        ) {
+            throw new Error(
+                "Selected medicine is not a valid substitute."
+            );
+        }
+
+        const medicineResult = await client.query(
+            `
+            SELECT requires_prescription
             FROM medicines
-            WHERE id = $1
-        )
-    WHERE id = $2;
-    `,
-    [targetMedicineId, orderItemId]
-);
-const updatedOrder = await client.query(
-    `
-    UPDATE orders
-    SET branch_id = $1
-    WHERE id = $2
-    RETURNING *;
-    `,
-    [targetBranchId, orderId]
-);
-await client.query("COMMIT");
+            WHERE id = $1;
+            `,
+            [targetMedicineId]
+        );
 
-return {
-    success: true,
-    message: "Substitution accepted successfully.",
-    order: updatedOrder.rows[0]
-};
+        if (medicineResult.rowCount === 0) {
+            throw new Error("Medicine not found");
+        }
+
+        const originalMedicineResult = await client.query(
+            `
+            SELECT requires_prescription
+            FROM medicines
+            WHERE id = $1;
+            `,
+            [item.medicine_id]
+        );
+
+        const originalRequiresPrescription =
+            originalMedicineResult.rowCount > 0 && originalMedicineResult.rows[0].requires_prescription;
+
+        if (
+            originalRequiresPrescription &&
+            (targetBranchId !== order.branch_id || targetMedicineId !== item.medicine_id)
+        ) {
+            try {
+                await releaseReservedStock(
+                    client,
+                    order.branch_id,
+                    item.medicine_id,
+                    item.quantity
+                );
+            } catch (releaseErr) {
+                if (releaseErr.message !== "Reserved stock not found") {
+                    throw releaseErr;
+                }
+            }
+        }
+
+        const requiresPrescription = medicineResult.rows[0].requires_prescription;
+
+        if (requiresPrescription) {
+            await reserveStock(
+                client,
+                targetBranchId,
+                targetMedicineId,
+                item.quantity
+            );
+        } else {
+            await decrementStock(
+                client,
+                targetBranchId,
+                targetMedicineId,
+                item.quantity
+            );
+        }
+
+        await client.query(
+            `
+            UPDATE order_items
+            SET medicine_id = $1,
+                unit_price = (
+                    SELECT price
+                    FROM medicines
+                    WHERE id = $1
+                )
+            WHERE id = $2;
+            `,
+            [targetMedicineId, orderItemId]
+        );
+
+        const updatedOrder = await client.query(
+            `
+            UPDATE orders
+            SET branch_id = $1
+            WHERE id = $2
+            RETURNING *;
+            `,
+            [targetBranchId, orderId]
+        );
+
+        const hasPendingPrescription = await client.query(
+            `
+            SELECT oi.id
+            FROM order_items oi
+            JOIN medicines m
+              ON oi.medicine_id = m.id
+            LEFT JOIN prescriptions p
+              ON p.order_item_id = oi.id
+            WHERE oi.order_id = $1
+              AND m.requires_prescription = TRUE
+              AND (p.id IS NULL OR p.status <> 'approved')
+            LIMIT 1;
+            `,
+            [orderId]
+        );
+
+        if (
+            updatedOrder.rows[0].status === "Pending Pharmacist Review" &&
+            hasPendingPrescription.rowCount === 0
+        ) {
+            await client.query(
+                `
+                UPDATE orders
+                SET status = 'Placed',
+                    status_updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1;
+                `,
+                [orderId]
+            );
+        }
+
+        await client.query("COMMIT");
+
+        return {
+            success: true,
+            message: "Substitution accepted successfully.",
+            order: updatedOrder.rows[0]
+        };
 } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -667,12 +762,9 @@ try {
 );
 
 const order = orderResult.rows[0];
-await restoreStock(
-    client,
-    order.branch_id,
-    item.medicine_id,
-    item.quantity
-);
+
+// No stock was decremented or reserved for the original order item when the
+// substitution request was returned, so do not restore stock here.
 await client.query(
     `
     DELETE
@@ -690,7 +782,6 @@ const remainingItems = await client.query(
     [orderId]
 );
 if (remainingItems.rowCount === 0) {
-
     await client.query(
         `
         UPDATE orders

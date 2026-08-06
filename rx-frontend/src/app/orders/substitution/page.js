@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
+import { getUser } from "@/utils/auth";
 
 export default function SubstitutionTestPage() {
  const router = useRouter();
@@ -10,8 +12,26 @@ export default function SubstitutionTestPage() {
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
+  const user = getUser();
+  const customerId = user?.id;
 
   const [substitution, setSubstitution] = useState(null);
+
+  const normalizedSuggestion = (sub) => {
+    if (!sub) return {};
+    if (sub.branchSuggestion || sub.medicineSuggestion || sub.medicineOtherBranchSuggestion) {
+      return sub;
+    }
+    const branchSuggestion = sub.suggestionOptions?.find((opt) => opt.type === "same_medicine_other_branch");
+    const medicineSuggestion = sub.suggestionOptions?.find((opt) => opt.type === "substitute_same_branch");
+    const medicineOtherBranchSuggestion = sub.suggestionOptions?.find((opt) => opt.type === "substitute_other_branch");
+    return {
+      ...sub,
+      branchSuggestion,
+      medicineSuggestion,
+      medicineOtherBranchSuggestion,
+    };
+  };
 
 useEffect(() => {
   const data = localStorage.getItem("substitutionData");
@@ -23,31 +43,36 @@ useEffect(() => {
     const acceptChoice = async (selectedBranchId, selectedMedicineId) => {
     if (!substitution) return;
 
+    const normalized = normalizedSuggestion(substitution);
+
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/orders/${substitution.orderId}/accept-substitution`,
+      const branchIdNumber = Number(selectedBranchId);
+      const medicineIdNumber = Number(selectedMedicineId);
+
+    if (!Number.isFinite(branchIdNumber) || !Number.isFinite(medicineIdNumber)) {
+      setMessage("Invalid substitution choice selected.");
+      setMessageType("error");
+      return;
+    }
+
+    const response = await api.patch(
+        `/orders/${substitution.orderId}/accept-substitution`,
         {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            orderItemId: substitution.orderItemId,
-            branchId: selectedBranchId,
-            medicineId: selectedMedicineId,
-          }),
+          orderItemId: Number(substitution.orderItemId),
+          branchId: branchIdNumber,
+          medicineId: medicineIdNumber,
         }
       );
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok) {
+      if (response.status === 200) {
         setMessage(data.message || "Substitution accepted successfully.");
         setMessageType("success");
         localStorage.removeItem("substitutionData");
-router.push("/orders?customerId=3");
+        router.push(`/orders?customerId=${customerId || 1}`);
       } else {
         setMessage(data.message || "Failed to accept substitution.");
         setMessageType("error");
@@ -68,26 +93,20 @@ router.push("/orders?customerId=3");
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/orders/${substitution.orderId}/reject-substitution`,
+      const response = await api.patch(
+        `/orders/${substitution.orderId}/reject-substitution`,
         {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            orderItemId: substitution.orderItemId,
-          }),
+          orderItemId: substitution.orderItemId,
         }
       );
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok) {
+      if (response.status === 200) {
         setMessage(data.message || "Substitution rejected.");
         setMessageType("success");
         localStorage.removeItem("substitutionData");
-router.push("/orders?customerId=3");
+        router.push(`/orders?customerId=${customerId || 1}`);
       } else {
         setMessage(data.message || "Failed to reject substitution.");
         setMessageType("error");
@@ -138,7 +157,7 @@ router.push("/orders?customerId=3");
           Please choose one of the following substitution options.
         </p>
                 {/* Option 1 - Same Medicine, Different Branch */}
-        {substitution.branchSuggestion && (
+        {(normalizedSuggestion(substitution).branchSuggestion || substitution.branchSuggestion) && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-5">
 
             <h3 className="text-xl font-semibold text-blue-700 mb-3">
@@ -147,18 +166,18 @@ router.push("/orders?customerId=3");
 
             <p>
               <strong>Branch:</strong>{" "}
-              {substitution.branchSuggestion.branchName}
+              {normalizedSuggestion(substitution).branchSuggestion?.branchName || substitution.branchSuggestion?.branchName}
             </p>
 
             <p>
               <strong>Available Quantity:</strong>{" "}
-              {substitution.branchSuggestion.availableQuantity}
+              {normalizedSuggestion(substitution).branchSuggestion?.availableQuantity || substitution.branchSuggestion?.availableQuantity}
             </p>
 
             <button
               onClick={() =>
                 acceptChoice(
-                  substitution.branchSuggestion.branchId,
+                  normalizedSuggestion(substitution).branchSuggestion?.branchId,
                   substitution.originalMedicineId
                 )
               }
@@ -171,7 +190,7 @@ router.push("/orders?customerId=3");
         )}
 
         {/* Option 2 - Substitute Medicine */}
-        {substitution.medicineSuggestion && (
+        {(normalizedSuggestion(substitution).medicineSuggestion || substitution.medicineSuggestion) && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-5 mb-5">
 
             <h3 className="text-xl font-semibold text-green-700 mb-3">
@@ -180,24 +199,24 @@ router.push("/orders?customerId=3");
 
             <p>
               <strong>Medicine:</strong>{" "}
-              {substitution.medicineSuggestion.name}
+              {normalizedSuggestion(substitution).medicineSuggestion?.name || substitution.medicineSuggestion?.name}
             </p>
 
             <p>
               <strong>Price:</strong> ₹
-              {substitution.medicineSuggestion.price}
+              {normalizedSuggestion(substitution).medicineSuggestion?.price || substitution.medicineSuggestion?.price}
             </p>
 
             <p>
               <strong>Available Quantity:</strong>{" "}
-              {substitution.medicineSuggestion.availableQuantity}
+              {normalizedSuggestion(substitution).medicineSuggestion?.availableQuantity || substitution.medicineSuggestion?.availableQuantity}
             </p>
 
             <button
               onClick={() =>
                 acceptChoice(
                   substitution.originalBranchId,
-                  substitution.medicineSuggestion.id
+                  normalizedSuggestion(substitution).medicineSuggestion?.id
                 )
               }
               className="mt-4 bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg"
@@ -208,7 +227,7 @@ router.push("/orders?customerId=3");
           </div>
         )}
                 {/* Option 3 - Substitute Medicine at Another Branch */}
-        {substitution.medicineOtherBranchSuggestion && (
+        {(normalizedSuggestion(substitution).medicineOtherBranchSuggestion || substitution.medicineOtherBranchSuggestion) && (
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-5 mb-5">
 
             <h3 className="text-xl font-semibold text-purple-700 mb-3">
@@ -217,29 +236,29 @@ router.push("/orders?customerId=3");
 
             <p>
               <strong>Medicine:</strong>{" "}
-              {substitution.medicineOtherBranchSuggestion.name}
+              {normalizedSuggestion(substitution).medicineOtherBranchSuggestion?.name || substitution.medicineOtherBranchSuggestion?.name}
             </p>
 
             <p>
               <strong>Branch:</strong>{" "}
-              {substitution.medicineOtherBranchSuggestion.branchName}
+              {normalizedSuggestion(substitution).medicineOtherBranchSuggestion?.branchName || substitution.medicineOtherBranchSuggestion?.branchName}
             </p>
 
             <p>
               <strong>Price:</strong> ₹
-              {substitution.medicineOtherBranchSuggestion.price}
+              {normalizedSuggestion(substitution).medicineOtherBranchSuggestion?.price || substitution.medicineOtherBranchSuggestion?.price}
             </p>
 
             <p>
               <strong>Available Quantity:</strong>{" "}
-              {substitution.medicineOtherBranchSuggestion.availableQuantity}
+              {normalizedSuggestion(substitution).medicineOtherBranchSuggestion?.availableQuantity || substitution.medicineOtherBranchSuggestion?.availableQuantity}
             </p>
 
             <button
               onClick={() =>
                 acceptChoice(
-                  substitution.medicineOtherBranchSuggestion.branchId,
-                  substitution.medicineOtherBranchSuggestion.id
+                  normalizedSuggestion(substitution).medicineOtherBranchSuggestion?.branchId,
+                  normalizedSuggestion(substitution).medicineOtherBranchSuggestion?.id
                 )
               }
               className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-lg"
