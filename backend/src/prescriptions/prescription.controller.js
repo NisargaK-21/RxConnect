@@ -1,13 +1,15 @@
+const path = require("path");
 const prescriptionService = require("./prescription.service");
 const pool = require("../database/db");
 const uploadPrescription = async (req, res) => {
   try {
     const { orderItemId } = req.body;
-    const fileUrl = req.file.path;
+    const fileUrl = path.posix.join("uploads", req.file.filename);
 
     const prescription = await prescriptionService.uploadPrescription(
       orderItemId,
-      fileUrl
+      fileUrl,
+      req.user?.id
     );
 
     if (!prescription) {
@@ -22,6 +24,16 @@ const uploadPrescription = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    if (error.message.includes("not authorized")) {
+      return res.status(403).json({ message: error.message });
+    }
+    if (
+      error.message.includes("not found") ||
+      error.message.includes("already uploaded") ||
+      error.message.includes("does not require a prescription")
+    ) {
+      return res.status(400).json({ message: error.message });
+    }
     return res.status(500).json({
       message: "Internal server error",
     });

@@ -4,53 +4,92 @@ const {
   releaseReservedStock,
 } = require("../stock/stock.service");
 const notificationService = require("../notifications/notification.service");
-const uploadPrescription = async (orderItemId, fileUrl) => {
-  const orderItemResult = await pool.query(
-    `
-    SELECT
+const ORDER_STATUS_PENDING_REVIEW = "Pending Pharmacist Review";
+
+const uploadPrescription = async (orderItemId, fileUrl, userId = null) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const orderItemResult = await client.query(
+      `
+      SELECT
         oi.id,
+        oi.order_id,
+        o.customer_id,
+        o.status AS order_status,
         m.requires_prescription
-    FROM order_items oi
-    JOIN medicines m
+      FROM order_items oi
+      JOIN orders o
+        ON oi.order_id = o.id
+      JOIN medicines m
         ON oi.medicine_id = m.id
-    WHERE oi.id = $1;
-    `,
-    [orderItemId]
-);
+      WHERE oi.id = $1;
+      `,
+      [orderItemId]
+    );
 
-if (orderItemResult.rowCount === 0) {
-    return null;
-}
+    if (orderItemResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
 
-const orderItem = orderItemResult.rows[0];
+    const orderItem = orderItemResult.rows[0];
 
-if (!orderItem.requires_prescription) {
-    throw new Error(
+    if (userId && orderItem.customer_id !== userId) {
+      throw new Error(
+        "You are not authorized to upload a prescription for this order item."
+      );
+    }
+
+    if (!orderItem.requires_prescription) {
+      throw new Error(
         "This medicine does not require a prescription."
-    );
-}
-const existingPrescription = await pool.query(
-    `
-    SELECT id
-    FROM prescriptions
-    WHERE order_item_id = $1;
-    `,
-    [orderItemId]
-);
+      );
+    }
 
-if (existingPrescription.rowCount > 0) {
-    throw new Error(
+    const existingPrescription = await client.query(
+      `
+      SELECT id
+      FROM prescriptions
+      WHERE order_item_id = $1;
+      `,
+      [orderItemId]
+    );
+
+    if (existingPrescription.rowCount > 0) {
+      throw new Error(
         "Prescription already uploaded for this order item."
-    );
-}
-  const result = await pool.query(
-    `INSERT INTO prescriptions (order_item_id, file_url)
-     VALUES ($1, $2)
-     RETURNING *`,
-    [orderItemId, fileUrl]
-  );
+      );
+    }
 
-  return result.rows[0];
+    const result = await client.query(
+      `INSERT INTO prescriptions (order_item_id, file_url)
+       VALUES ($1, $2)
+       RETURNING *`,
+      [orderItemId, fileUrl]
+    );
+
+    if (orderItem.order_status !== ORDER_STATUS_PENDING_REVIEW) {
+      await client.query(
+        `
+        UPDATE orders
+        SET status = $1
+        WHERE id = $2;
+        `,
+        [ORDER_STATUS_PENDING_REVIEW, orderItem.order_id]
+      );
+    }
+
+    await client.query("COMMIT");
+    return result.rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 const getPrescriptionById = async (id) => {
   const result = await pool.query(
@@ -193,9 +232,7 @@ const reviewPrescription = async (
         prescription.medicine_id,
         prescription.quantity
       );
-    } else if (status === "rejected") {
 
-      // D-24: Auto verify when all Rx items are approved
       const pendingResult = await client.query(
         `
         SELECT oi.id
@@ -226,9 +263,7 @@ const reviewPrescription = async (
           [prescription.order_id]
         );
       }
-    }
-
-    if (status === "rejected") {
+    } else if (status === "rejected") {
       await releaseReservedStock(
         client,
         prescription.branch_id,
@@ -236,25 +271,25 @@ const reviewPrescription = async (
         prescription.quantity
       );
       await client.query(
-  `
-  UPDATE orders
-  SET
-    status = 'Rejected',
-    status_updated_at = CURRENT_TIMESTAMP
-  WHERE id = $1;
-  `,
-  [prescription.order_id]
-);
-await notificationService.createNotification({
-  user_id: prescription.customer_id,
-  type: "PRESCRIPTION_REJECTED",
-  payload: {
-    orderId: prescription.order_id,
-    prescriptionId,
-    message:
-      "Your prescription was rejected. The reserved stock has been released."
-  }
-});
+        `
+        UPDATE orders
+        SET
+          status = 'Rejected',
+          status_updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1;
+        `,
+        [prescription.order_id]
+      );
+      await notificationService.createNotification({
+        user_id: prescription.customer_id,
+        type: "PRESCRIPTION_REJECTED",
+        payload: {
+          orderId: prescription.order_id,
+          prescriptionId,
+          message:
+            "Your prescription was rejected. The reserved stock has been released.",
+        },
+      });
     }
 
     await client.query("COMMIT");

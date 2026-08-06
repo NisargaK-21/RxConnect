@@ -11,6 +11,8 @@ const {
 
 router.post(
   "/upload",
+  authenticate,
+  authorize("customer"),
   upload.single("prescription"),
   validatePrescriptionUpload,
   prescriptionController.uploadPrescription
