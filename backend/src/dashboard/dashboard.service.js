@@ -88,8 +88,9 @@ const getLowStockPerBranch = async () => {
 };
 
 
-const getBranchFulfillmentRate = async () => {
-  const result = await pool.query(`
+const getBranchFulfillmentRate = async ({ startDate = null, endDate = null } = {}) => {
+  const result = await pool.query(
+    `
     SELECT
       b.id,
       b.name,
@@ -103,9 +104,13 @@ const getBranchFulfillmentRate = async () => {
     FROM branches b
     LEFT JOIN orders o
       ON b.id = o.branch_id
+      AND ($1::date IS NULL OR DATE(o.created_at) >= $1::date)
+      AND ($2::date IS NULL OR DATE(o.created_at) <= $2::date)
     GROUP BY b.id, b.name
     ORDER BY b.name;
-  `);
+  `,
+    [startDate, endDate]
+  );
 
   return result.rows.map((branch) => {
     const total = Number(branch.total_orders);
