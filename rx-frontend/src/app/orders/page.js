@@ -250,22 +250,32 @@ function OrdersContent() {
           branchName: data.branchName,
           suggestionOptions: data.suggestionOptions || [],
         };
+        const suggestionOptions = rawSuggestion.suggestionOptions || [];
+
+        const opt_same_branch = suggestionOptions.find((s) => s.type === "same_medicine_other_branch");
+        const opt_sub_same = suggestionOptions.find((s) => s.type === "substitute_same_branch");
+        const opt_sub_other = suggestionOptions.find((s) => s.type === "substitute_other_branch");
+
         const branchSuggestionFromPayload =
           rawSuggestion.branchSuggestion ||
+          opt_same_branch ||
           (rawSuggestion.branchId
             ? {
                 branchId: rawSuggestion.branchId,
                 branchName: rawSuggestion.branchName,
               }
             : null);
+
         const suggestionData = {
           ...rawSuggestion,
           branchSuggestion: branchSuggestionFromPayload,
+          medicineSuggestion: rawSuggestion.medicineSuggestion || opt_sub_same,
+          medicineOtherBranchSuggestion: rawSuggestion.medicineOtherBranchSuggestion || opt_sub_other,
           branchId:
-            rawSuggestion.branchId || branchSuggestionFromPayload?.branchId,
+            rawSuggestion.branchId || branchSuggestionFromPayload?.branchId || opt_sub_other?.branchId,
           branchName:
-            rawSuggestion.branchName || branchSuggestionFromPayload?.branchName,
-          suggestionOptions: rawSuggestion.suggestionOptions || [],
+            rawSuggestion.branchName || branchSuggestionFromPayload?.branchName || opt_sub_other?.branchName,
+          suggestionOptions,
         };
         setSuggestion(suggestionData);
         setSubstitutionPending({
