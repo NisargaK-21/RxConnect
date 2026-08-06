@@ -1,7 +1,9 @@
 const {
   getTodaysOrdersPerBranch,
   getLowStockPerBranch,
-  getBranchFulfillmentRate
+  getBranchFulfillmentRate,
+  logFulfillmentFailure,
+  getRecurringFulfillmentFailures,
 } = require("./dashboard.service");
 
 const getDashboard = async (req, res) => {
@@ -90,8 +92,81 @@ const getFulfillmentDashboard = async (req, res) => {
   }
 };
 
+const getRecurringFulfillmentFailuresController = async (req, res) => {
+  try {
+    let threshold = 3;
+    if (req.query.threshold !== undefined && req.query.threshold !== "") {
+      threshold = Number(req.query.threshold);
+      if (Number.isNaN(threshold) || threshold < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "threshold must be a non-negative number",
+        });
+      }
+    }
+
+    const startDate = validateDateInput(req.query.startDate, "startDate");
+    const endDate = validateDateInput(req.query.endDate, "endDate");
+
+    if (startDate && endDate && startDate > endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "startDate cannot be after endDate",
+      });
+    }
+
+    const data = await getRecurringFulfillmentFailures({
+      threshold,
+      startDate,
+      endDate,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+const recordFulfillmentFailureController = async (req, res) => {
+  try {
+    const { branchId, medicineId, orderId, failureReason } = req.body;
+
+    if (!branchId) {
+      return res.status(400).json({
+        success: false,
+        message: "branchId is required",
+      });
+    }
+
+    const failureLog = await logFulfillmentFailure({
+      branchId,
+      medicineId,
+      orderId,
+      failureReason,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: failureLog,
+    });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 module.exports = {
   getDashboard,
   getLowStockDashboard,
-  getFulfillmentDashboard
+  getFulfillmentDashboard,
+  getRecurringFulfillmentFailures: getRecurringFulfillmentFailuresController,
+  recordFulfillmentFailure: recordFulfillmentFailureController,
 };
