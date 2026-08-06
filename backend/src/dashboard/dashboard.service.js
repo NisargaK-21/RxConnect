@@ -131,8 +131,88 @@ const getBranchFulfillmentRate = async ({ startDate = null, endDate = null } = {
   });
 };
 
+const logFulfillmentFailure = async (
+  { branchId, medicineId = null, orderId = null, failureReason = "insufficient_stock" },
+  client = pool
+) => {
+  if (!branchId) {
+    throw new Error("branchId is required to log fulfillment failure");
+  }
+
+  const result = await client.query(
+    `
+    INSERT INTO fulfillment_failure_logs (branch_id, medicine_id, order_id, failure_reason)
+    VALUES ($1, $2, $3, $4)
+    RETURNING *;
+    `,
+    [branchId, medicineId, orderId, failureReason]
+  );
+
+  return result.rows[0];
+};
+
+const getRecurringFulfillmentFailures = async ({
+  threshold = 3,
+  startDate = null,
+  endDate = null,
+} = {}) => {
+  const thresholdNum =
+    typeof threshold === "number" && !Number.isNaN(threshold)
+      ? threshold
+      : Number(threshold) || 3;
+
+  const params = [];
+  let paramIndex = 1;
+  let dateFilter = "";
+
+  if (startDate) {
+    dateFilter += ` AND DATE(ffl.created_at) >= ${paramIndex++}::date`;
+    params.push(startDate);
+  }
+
+  if (endDate) {
+    dateFilter += ` AND DATE(ffl.created_at) <= ${paramIndex++}::date`;
+    params.push(endDate);
+  }
+
+  const query = `
+    SELECT
+      b.id AS branch_id,
+      b.name AS branch_name,
+      b.address AS branch_address,
+      COUNT(ffl.id)::int AS failure_count
+    FROM branches b
+    LEFT JOIN fulfillment_failure_logs ffl
+      ON b.id = ffl.branch_id
+      AND ffl.failure_reason = 'insufficient_stock'
+      ${dateFilter}
+    GROUP BY b.id, b.name, b.address
+    ORDER BY failure_count DESC, b.name ASC;
+  `;
+
+  const result = await pool.query(query, params);
+
+  return result.rows.map((row) => {
+    const failureCount = Number(row.failure_count || 0);
+    const isFlagged = failureCount >= thresholdNum;
+
+    return {
+      branchId: row.branch_id,
+      branchName: row.branch_name,
+      address: row.branch_address,
+      failureCount,
+      threshold: thresholdNum,
+      isFlagged,
+      flagged: isFlagged,
+    };
+  });
+};
+
 module.exports = {
   getTodaysOrdersPerBranch,
   getLowStockPerBranch,
   getBranchFulfillmentRate,
+  logFulfillmentFailure,
+  getRecurringFulfillmentFailures,
+  getFulfillmentFailures: getRecurringFulfillmentFailures,
 };

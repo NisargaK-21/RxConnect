@@ -1,4 +1,5 @@
 const pool = require("../database/db");
+const { logFulfillmentFailure } = require("../dashboard/dashboard.service");
 const {
     decrementStock,
     restoreStock,
@@ -142,6 +143,20 @@ const placeOrder = async (
                 }
             } catch (error) {
                 if (error.message === "Insufficient stock") {
+                    try {
+                        await logFulfillmentFailure(
+                            {
+                                branchId,
+                                medicineId,
+                                orderId: order ? order.id : null,
+                                failureReason: "insufficient_stock",
+                            },
+                            client
+                        );
+                    } catch (logErr) {
+                        console.error("Failed to log fulfillment failure:", logErr);
+                    }
+
                     const alternativeBranchForOrder =
                         await findAlternativeBranchForOrder(
                             branchId,
