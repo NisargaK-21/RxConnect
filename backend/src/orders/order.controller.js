@@ -62,6 +62,18 @@ const createOrder = async (req, res) => {
                 });
             }
 
+            // Ensure top-level suggestion fields are populated for older frontend
+            // code paths that expect `medicineSuggestion` and
+            // `medicineOtherBranchSuggestion` directly on the suggestion object.
+            if (!suggestion.medicineSuggestion) {
+                const sameBranchSub = suggestionOptions.find((s) => s.type === "substitute_same_branch");
+                if (sameBranchSub) suggestion.medicineSuggestion = sameBranchSub;
+            }
+            if (!suggestion.medicineOtherBranchSuggestion) {
+                const otherBranchSub = suggestionOptions.find((s) => s.type === "substitute_other_branch");
+                if (otherBranchSub) suggestion.medicineOtherBranchSuggestion = otherBranchSub;
+            }
+
             return res.status(409).json({
                 success: false,
                 substitutionRequired: true,
