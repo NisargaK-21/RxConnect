@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";
@@ -14,17 +14,17 @@ import { toast } from "@/components/Toast";
 import { useCart } from "@/context/CartContext";
 import { uploadPrescription } from "@/services/prescription.service";
 
-export default function MedicineDetailsPage({ params }) {
+export default function MedicineDetailsPage() {
   return (
     <RequireAuth allowedRoles={["admin", "customer", "staff", "pharmacist"]}>
-      <MedicineDetailsInner params={params} />
+      <MedicineDetailsInner />
     </RequireAuth>
   );
 }
 
-function MedicineDetailsInner({ params }) {
-  const resolvedParams = use(params);
-  const id = resolvedParams?.id;
+function MedicineDetailsInner() {
+  const params = useParams();
+  const id = params?.id;
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -123,7 +123,14 @@ function MedicineDetailsInner({ params }) {
       toast(data.message || "Quick order placed!", { variant: "success" });
       setTimeout(() => router.push("/order-tracking"), 1000);
     } catch (err) {
-      toast(err?.response?.data?.message || "Failed to place quick order", {
+      const data = err?.response?.data;
+      if (data?.substitutionRequired) {
+        localStorage.setItem("substitutionData", JSON.stringify(data));
+        router.push("/orders/substitution");
+        return;
+      }
+
+      toast(data?.message || "Failed to place quick order", {
         variant: "error",
       });
     } finally {

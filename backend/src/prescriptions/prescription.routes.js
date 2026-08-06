@@ -47,4 +47,10 @@ router.patch(
   authorize("pharmacist"),
   prescriptionController.updateStandingApproval
 );
+router.post(
+  "/release-expired-holds",
+  authenticate,
+  authorize("admin", "pharmacist"),
+  prescriptionController.releaseExpiredHolds
+);
 module.exports = router;

@@ -9,7 +9,7 @@ const decrementStock = async (client, branchId, medicineId, quantity) => {
     SET quantity = quantity - $1
     WHERE branch_id = $2
       AND medicine_id = $3
-      AND quantity >= $1
+      AND (quantity - reserved_quantity) >= $1
     RETURNING *;
     `,
     [quantity, branchId, medicineId]
@@ -187,17 +187,48 @@ const findAlternativeBranch = async (
     SELECT
       b.id AS "branchId",
       b.name AS "branchName",
-      bs.quantity AS "availableQuantity"
+      (bs.quantity - bs.reserved_quantity) AS "availableQuantity"
     FROM branch_stock bs
     JOIN branches b
       ON bs.branch_id = b.id
     WHERE bs.medicine_id = $1
       AND bs.branch_id <> $2
-      AND bs.quantity >= $3
-    ORDER BY bs.quantity DESC
+      AND (bs.quantity - bs.reserved_quantity) >= $3
+    ORDER BY (bs.quantity - bs.reserved_quantity) DESC
     LIMIT 1;
     `,
     [medicineId, currentBranchId, requiredQuantity]
+  );
+
+  return result.rows[0] || null;
+};
+
+const findAlternativeBranchForOrder = async (
+  currentBranchId,
+  orderItems
+) => {
+  const result = await pool.query(
+    `
+    SELECT
+      b.id AS "branchId",
+      b.name AS "branchName"
+    FROM branches b
+    WHERE b.id <> $1
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_to_recordset($2::jsonb) AS item("medicineId" int, "quantity" int)
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM branch_stock bs
+          WHERE bs.branch_id = b.id
+            AND bs.medicine_id = item."medicineId"
+            AND (bs.quantity - bs.reserved_quantity) >= item."quantity"
+        )
+      )
+    ORDER BY b.name
+    LIMIT 1;
+    `,
+    [currentBranchId, JSON.stringify(orderItems)]
   );
 
   return result.rows[0] || null;
@@ -215,7 +246,7 @@ const findSubstituteMedicine = async (
         m.id,
         m.name,
         m.price,
-        bs.quantity AS "availableQuantity"
+        (bs.quantity - bs.reserved_quantity) AS "availableQuantity"
       FROM medicine_substitutions ms
       JOIN medicines m
         ON ms.substitute_medicine_id = m.id
@@ -223,8 +254,8 @@ const findSubstituteMedicine = async (
         ON bs.medicine_id = m.id
       WHERE ms.medicine_id = $1
         AND bs.branch_id = $2
-        AND bs.quantity >= $3
-      ORDER BY bs.quantity DESC
+        AND (bs.quantity - bs.reserved_quantity) >= $3
+      ORDER BY (bs.quantity - bs.reserved_quantity) DESC
       LIMIT 1;
       `,
       [medicineId, branchId, requiredQuantity]
@@ -253,7 +284,7 @@ const findSubstituteInOtherBranch = async (
         m.price,
         b.id AS "branchId",
         b.name AS "branchName",
-        bs.quantity AS "availableQuantity"
+        (bs.quantity - bs.reserved_quantity) AS "availableQuantity"
       FROM medicine_substitutions ms
       JOIN medicines m
         ON ms.substitute_medicine_id = m.id
@@ -263,8 +294,8 @@ const findSubstituteInOtherBranch = async (
         ON bs.branch_id = b.id
       WHERE ms.medicine_id = $1
         AND bs.branch_id <> $2
-        AND bs.quantity >= $3
-      ORDER BY bs.quantity DESC
+        AND (bs.quantity - bs.reserved_quantity) >= $3
+      ORDER BY (bs.quantity - bs.reserved_quantity) DESC
       LIMIT 1;
       `,
       [medicineId, currentBranchId, requiredQuantity]
@@ -382,6 +413,7 @@ module.exports = {
   escalateUnacknowledgedAlerts,
   getEscalatedAlerts,
   findAlternativeBranch,
+  findAlternativeBranchForOrder,
   findSubstituteMedicine,
   findSubstituteInOtherBranch,
   getBranchStock,

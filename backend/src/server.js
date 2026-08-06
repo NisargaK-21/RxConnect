@@ -16,6 +16,7 @@ const prescriptionRoutes = require("./prescriptions/prescription.routes");
 const orderRoutes = require("./orders/order.routes");
 const userRoutes = require("./users/users.routes");
 const dashboardRoutes = require("./dashboard/dashboard.routes");
+const { getRecurringFulfillmentFailures } = require("./dashboard/dashboard.controller");
 const deliveryRoutes = require("./delivery/delivery.routes");
 
 dotenv.config();
@@ -62,6 +63,13 @@ app.get(
       user: req.user,
     });
   }
+);
+
+app.get(
+  "/admin/fulfillment-failures",
+  authenticate,
+  authorize("admin"),
+  getRecurringFulfillmentFailures
 );
 
 const PORT = process.env.PORT || 5000;

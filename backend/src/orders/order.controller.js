@@ -27,19 +27,62 @@ const createOrder = async (req, res) => {
     } catch (err) {
 
         if (err.message === "OUT_OF_STOCK") {
+            const branchSuggestion = err.alternativeBranch;
+            const suggestion = {
+                branchSuggestion,
+                medicineSuggestion: err.substituteMedicine,
+                medicineOtherBranchSuggestion: err.substituteOtherBranch,
+                originalBranchId: err.originalBranchId,
+                originalMedicineId: err.originalMedicineId,
+                branchId: branchSuggestion?.branchId,
+                branchName: branchSuggestion?.branchName,
+            };
+
+            const suggestionOptions = [];
+            if (branchSuggestion) {
+                suggestionOptions.push({
+                    type: "same_medicine_other_branch",
+                    ...branchSuggestion,
+                    medicineId: err.originalMedicineId,
+                });
+            }
+            if (err.substituteMedicine) {
+                suggestionOptions.push({
+                    type: "substitute_same_branch",
+                    ...err.substituteMedicine,
+                    originalMedicineId: err.originalMedicineId,
+                    branchId: err.originalBranchId,
+                });
+            }
+            if (err.substituteOtherBranch) {
+                suggestionOptions.push({
+                    type: "substitute_other_branch",
+                    ...err.substituteOtherBranch,
+                    originalMedicineId: err.originalMedicineId,
+                });
+            }
+
+            // Ensure top-level suggestion fields are populated for older frontend
+            // code paths that expect `medicineSuggestion` and
+            // `medicineOtherBranchSuggestion` directly on the suggestion object.
+            if (!suggestion.medicineSuggestion) {
+                const sameBranchSub = suggestionOptions.find((s) => s.type === "substitute_same_branch");
+                if (sameBranchSub) suggestion.medicineSuggestion = sameBranchSub;
+            }
+            if (!suggestion.medicineOtherBranchSuggestion) {
+                const otherBranchSub = suggestionOptions.find((s) => s.type === "substitute_other_branch");
+                if (otherBranchSub) suggestion.medicineOtherBranchSuggestion = otherBranchSub;
+            }
 
             return res.status(409).json({
                 success: false,
                 substitutionRequired: true,
                 message: "Medicine is out of stock.",
-
                 orderId: err.orderId,
                 orderItemId: err.orderItemId,
-
-                branchSuggestion: err.alternativeBranch,
-                medicineSuggestion: err.substituteMedicine,
-                medicineOtherBranchSuggestion:
-                    err.substituteOtherBranch
+                ...suggestion,
+                suggestion,
+                suggestionOptions,
             });
         }
 

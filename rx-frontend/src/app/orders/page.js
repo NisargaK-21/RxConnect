@@ -155,6 +155,34 @@ function OrdersContent() {
     setItems((prev) => prev.filter((it) => it.key !== key));
   }
 
+  const normalizeSuggestion = (sub) => {
+    if (!sub) return {};
+    if (
+      sub.branchSuggestion ||
+      sub.medicineSuggestion ||
+      sub.medicineOtherBranchSuggestion
+    ) {
+      return sub;
+    }
+
+    const branchSuggestion = sub.suggestionOptions?.find(
+      (opt) => opt.type === "same_medicine_other_branch"
+    );
+    const medicineSuggestion = sub.suggestionOptions?.find(
+      (opt) => opt.type === "substitute_same_branch"
+    );
+    const medicineOtherBranchSuggestion = sub.suggestionOptions?.find(
+      (opt) => opt.type === "substitute_other_branch"
+    );
+
+    return {
+      ...sub,
+      branchSuggestion,
+      medicineSuggestion,
+      medicineOtherBranchSuggestion,
+    };
+  };
+
   const subtotal = items.reduce(
     (sum, it) => sum + (it.quantity || 0) * Number(it.unit_price || 0),
     0
@@ -167,7 +195,7 @@ function OrdersContent() {
       return;
     }
 
-    if (!branchId && !substituteBranchId) {
+    if (!branchId && substituteBranchId == null) {
       toast("Branch selection is required", { variant: "error" });
       return;
     }
@@ -177,12 +205,24 @@ function OrdersContent() {
       return;
     }
 
+    const resolvedBranchId =
+      substituteBranchId != null
+        ? Number(substituteBranchId)
+        : branchId
+        ? Number(branchId)
+        : null;
+
+    if (!resolvedBranchId || Number.isNaN(resolvedBranchId)) {
+      toast("Branch selection is required", { variant: "error" });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const payload = {
         customerId: Number(activeCustomerId),
-        branchId: Number(substituteBranchId || branchId),
+        branchId: Number(resolvedBranchId),
         items: items.map(({ medicineId, quantity }) => ({ medicineId, quantity })),
       };
 
@@ -199,15 +239,52 @@ function OrdersContent() {
     } catch (err) {
       const status = err?.response?.status;
       const data = err?.response?.data || {};
-      if (status === 409 && data.suggestion) {
-        setSuggestion(data.suggestion);
+      if (status === 409 && data.substitutionRequired) {
+        const rawSuggestion = data.suggestion || {
+          branchSuggestion: data.branchSuggestion,
+          medicineSuggestion: data.medicineSuggestion,
+          medicineOtherBranchSuggestion: data.medicineOtherBranchSuggestion,
+          originalBranchId: data.originalBranchId,
+          originalMedicineId: data.originalMedicineId,
+          branchId: data.branchId,
+          branchName: data.branchName,
+          suggestionOptions: data.suggestionOptions || [],
+        };
+        const suggestionOptions = rawSuggestion.suggestionOptions || [];
+
+        const opt_same_branch = suggestionOptions.find((s) => s.type === "same_medicine_other_branch");
+        const opt_sub_same = suggestionOptions.find((s) => s.type === "substitute_same_branch");
+        const opt_sub_other = suggestionOptions.find((s) => s.type === "substitute_other_branch");
+
+        const branchSuggestionFromPayload =
+          rawSuggestion.branchSuggestion ||
+          opt_same_branch ||
+          (rawSuggestion.branchId
+            ? {
+                branchId: rawSuggestion.branchId,
+                branchName: rawSuggestion.branchName,
+              }
+            : null);
+
+        const suggestionData = {
+          ...rawSuggestion,
+          branchSuggestion: branchSuggestionFromPayload,
+          medicineSuggestion: rawSuggestion.medicineSuggestion || opt_sub_same,
+          medicineOtherBranchSuggestion: rawSuggestion.medicineOtherBranchSuggestion || opt_sub_other,
+          branchId:
+            rawSuggestion.branchId || branchSuggestionFromPayload?.branchId || opt_sub_other?.branchId,
+          branchName:
+            rawSuggestion.branchName || branchSuggestionFromPayload?.branchName || opt_sub_other?.branchName,
+          suggestionOptions,
+        };
+        setSuggestion(suggestionData);
         setSubstitutionPending({
           payload: {
             customerId: Number(customerId),
             branchId: Number(branchId),
             items: items.map(({ medicineId, quantity }) => ({ medicineId, quantity })),
           },
-          suggestion: data.suggestion,
+          suggestion: suggestionData,
         });
         setPendingPayload({
           customerId: Number(customerId),
@@ -246,8 +323,44 @@ function OrdersContent() {
     }
   }
 
+  function applySubstituteMedicine() {
+    const normalized = normalizeSuggestion(suggestion);
+    if (!normalized?.medicineSuggestion || !normalized?.originalMedicineId) return;
+
+    setItems((prev) =>
+      prev.map((item) =>
+        item.medicineId === normalized.originalMedicineId
+          ? {
+              ...item,
+              medicineId: normalized.medicineSuggestion.id,
+              name: normalized.medicineSuggestion.name,
+              unit_price: Number(normalized.medicineSuggestion.price || item.unit_price),
+            }
+          : item
+      )
+    );
+
+    toast("Substitute medicine applied to the current order.", { variant: "success" });
+    setSuggestion(null);
+    setPendingPayload(null);
+    setSubstitutionPending(null);
+  }
+
   const linesCount = items.length;
   const totalQty = items.reduce((s, it) => s + (it.quantity || 0), 0);
+  const normalizedSuggestion = normalizeSuggestion(suggestion);
+  const branchSuggestion =
+    normalizedSuggestion.branchSuggestion ||
+    (normalizedSuggestion.branchId
+      ? {
+          branchId: normalizedSuggestion.branchId,
+          branchName: normalizedSuggestion.branchName,
+        }
+      : null);
+  const suggestionBranchId = branchSuggestion?.branchId;
+  const suggestionBranchName = branchSuggestion?.branchName;
+  const substituteMedicineSuggestion = normalizedSuggestion.medicineSuggestion;
+  const otherBranchMedicineSuggestion = normalizedSuggestion.medicineOtherBranchSuggestion;
 
   return (
     <AppShell activeRoute="/orders">
@@ -535,19 +648,25 @@ function OrdersContent() {
                 </div>
               </div>
 
-              {suggestion && (
+              {branchSuggestion ? (
                 <div className="mt-5 p-4 rounded-2xl border border-amber-200 bg-amber-50 animate-fade-in-up">
                   <div className="text-xs font-bold text-amber-900 mb-1">
                     Branch Stock Alert
                   </div>
                   <p className="text-xs text-amber-800 mb-3">
                     Item available at branch:{" "}
-                    <strong>{suggestion.branchName || `#${suggestion.branchId}`}</strong>
+                    <strong>{suggestionBranchName || `#${suggestionBranchId}`}</strong>
                   </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => placeOrder(suggestion.branchId)}
+                      onClick={() => {
+                        const targetBranch = Number(suggestionBranchId);
+                        if (!Number.isNaN(targetBranch)) {
+                          setBranchId(String(targetBranch));
+                          placeOrder(targetBranch);
+                        }
+                      }}
                       disabled={submitting}
                       className="flex-1 py-2 px-3 text-xs font-bold text-white bg-teal-600 rounded-xl shadow-sm hover:bg-teal-700"
                     >
@@ -563,7 +682,70 @@ function OrdersContent() {
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
+
+              {substituteMedicineSuggestion ? (
+                <div className="mt-5 p-4 rounded-2xl border border-emerald-200 bg-emerald-50 animate-fade-in-up">
+                  <div className="text-xs font-bold text-emerald-900 mb-1">
+                    Substitute Medicine Available in Current Branch
+                  </div>
+                  <p className="text-xs text-slate-800 mb-2">
+                    {substituteMedicineSuggestion.name} · ₹{substituteMedicineSuggestion.price}
+                  </p>
+                  <p className="text-xs text-slate-600 mb-4">
+                    Available quantity: {substituteMedicineSuggestion.availableQuantity}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={applySubstituteMedicine}
+                    disabled={submitting}
+                    className="w-full py-2 px-3 text-xs font-bold text-white bg-emerald-600 rounded-xl shadow-sm hover:bg-emerald-700"
+                  >
+                    Use Substitute Medicine
+                  </button>
+                </div>
+              ) : null}
+
+              {otherBranchMedicineSuggestion ? (
+                <div className="mt-5 p-4 rounded-2xl border border-purple-200 bg-purple-50 animate-fade-in-up">
+                  <div className="text-xs font-bold text-purple-900 mb-1">
+                    Substitute Medicine Available at Another Branch
+                  </div>
+                  <p className="text-xs text-slate-800 mb-2">
+                    {otherBranchMedicineSuggestion.name} · ₹{otherBranchMedicineSuggestion.price}
+                  </p>
+                  <p className="text-xs text-slate-600 mb-2">
+                    Branch: {otherBranchMedicineSuggestion.branchName || `#${otherBranchMedicineSuggestion.branchId}`}
+                  </p>
+                  <p className="text-xs text-slate-600 mb-4">
+                    Available quantity: {otherBranchMedicineSuggestion.availableQuantity}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!otherBranchMedicineSuggestion.branchId || !otherBranchMedicineSuggestion.id) return;
+                      setBranchId(String(otherBranchMedicineSuggestion.branchId));
+                      setItems((prev) =>
+                        prev.map((item) =>
+                          item.medicineId === suggestion.originalMedicineId
+                            ? {
+                                ...item,
+                                medicineId: otherBranchMedicineSuggestion.id,
+                                name: otherBranchMedicineSuggestion.name,
+                                unit_price: Number(otherBranchMedicineSuggestion.price || item.unit_price),
+                              }
+                            : item
+                        )
+                      );
+                      toast("Switched to substitute medicine at the alternate branch.", { variant: "success" });
+                    }}
+                    disabled={submitting}
+                    className="w-full py-2 px-3 text-xs font-bold text-white bg-purple-600 rounded-xl shadow-sm hover:bg-purple-700"
+                  >
+                    Use This Substitute Option
+                  </button>
+                </div>
+              ) : null}
 
               <button
                 type="button"
