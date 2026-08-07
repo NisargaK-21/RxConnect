@@ -24,9 +24,30 @@ const signup = async (userData) => {
     [name, email, hashedPassword, role, branch_id || null]
   );
 
+  const user = result.rows[0];
+
+  const token = jwt.sign(
+    {
+      id: user.id,
+      role: user.role,
+      branch_id: user.branch_id,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "1d",
+    }
+  );
+
   return {
     message: "User registered successfully",
-    user: result.rows[0],
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      branch_id: user.branch_id,
+    },
   };
 };
 

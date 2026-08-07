@@ -42,29 +42,30 @@ export function CartProvider({ children }) {
 
   const addToCart = (medicine, qty = 1) => {
     const id = Number(medicine.id);
-    setCart((prev) => {
-      const existingIndex = prev.findIndex((item) => Number(item.medicineId) === id);
-      if (existingIndex > -1) {
-        const updated = [...prev];
-        const newQty = updated[existingIndex].quantity + qty;
-        updated[existingIndex] = { ...updated[existingIndex], quantity: newQty };
-        toast(`Updated quantity for ${medicine.name || "item"} (${newQty})`, { variant: "info" });
-        return updated;
-      } else {
-        toast(`Added ${medicine.name || "item"} to cart`, { variant: "success" });
-        return [
-          ...prev,
-          {
-            medicineId: id,
-            name: medicine.name || medicine.medicine_name || `Medicine #${id}`,
-            price: Number(medicine.price || medicine.unit_price || 0),
-            quantity: qty,
-            requires_prescription: Boolean(medicine.requires_prescription),
-            description: medicine.description || "",
-          },
-        ];
-      }
-    });
+    const existingItem = cart.find((item) => Number(item.medicineId) === id);
+
+    if (existingItem) {
+      const newQty = existingItem.quantity + qty;
+      setCart((prev) =>
+        prev.map((item) =>
+          Number(item.medicineId) === id ? { ...item, quantity: newQty } : item
+        )
+      );
+      toast(`Updated quantity for ${medicine.name || "item"} (${newQty})`, { variant: "info" });
+    } else {
+      setCart((prev) => [
+        ...prev,
+        {
+          medicineId: id,
+          name: medicine.name || medicine.medicine_name || `Medicine #${id}`,
+          price: Number(medicine.price || medicine.unit_price || 0),
+          quantity: qty,
+          requires_prescription: Boolean(medicine.requires_prescription),
+          description: medicine.description || "",
+        },
+      ]);
+      toast(`Added ${medicine.name || "item"} to cart`, { variant: "success" });
+    }
   };
 
   const removeFromCart = (medicineId) => {

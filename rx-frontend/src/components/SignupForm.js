@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signup } from "../services/auth.service";
+import { saveAuth } from "@/utils/auth";
 import { toast } from "@/components/Toast";
 
 export default function SignupForm() {
@@ -52,11 +53,34 @@ export default function SignupForm() {
     setLoading(true);
     try {
       const data = await signup(formData);
-      toast(data.message || "Account created successfully", {
+      if (data.token && data.user) {
+        saveAuth(data);
+      }
+      toast(data.message || "Account created successfully!", {
         variant: "success",
         title: "Welcome to RxConnect!",
       });
-      router.push("/login");
+
+      const role = data.user?.role || formData.role;
+      switch (role) {
+        case "admin":
+          router.push("/dashboard");
+          break;
+        case "customer":
+          router.push("/catalog");
+          break;
+        case "staff":
+          router.push("/branch-orders");
+          break;
+        case "pharmacist":
+          router.push("/review-prescriptions");
+          break;
+        case "delivery":
+          router.push("/delivery");
+          break;
+        default:
+          router.push("/");
+      }
     } catch (err) {
       toast(err.response?.data?.message || "Signup failed", {
         variant: "error",
@@ -101,7 +125,7 @@ export default function SignupForm() {
               Create your account
             </h1>
             <p className="mt-1.5 text-sm text-slate-500">
-              Start your 14-day free trial. No credit card needed.
+              Sign up to access the RxConnect platform.
             </p>
           </div>
 

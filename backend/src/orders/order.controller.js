@@ -2,6 +2,7 @@ const {
     placeOrder,
     updateOrderStatus,
     cancelOrder,
+    cancelOrderItem,
     changeOrderBranch,
     acceptSubstitution,
     rejectSubstitution,
@@ -97,8 +98,9 @@ const updateStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
+        const userRole = req.user?.role || null;
 
-        const result = await updateOrderStatus(id, status);
+        const result = await updateOrderStatus(id, status, userRole);
 
         return res.status(200).json(result);
 
@@ -113,8 +115,24 @@ const updateStatus = async (req, res) => {
 const cancelCustomerOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const customerId = req.body?.customerId ?? null;
+        const customerId = req.user?.id || req.body?.customerId || null;
         const result = await cancelOrder(id, customerId);
+
+        return res.status(200).json(result);
+
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            message: err.message,
+        });
+    }
+};
+
+const cancelCustomerOrderItem = async (req, res) => {
+    try {
+        const { id, itemId } = req.params;
+        const customerId = req.user?.id || req.body?.customerId || null;
+        const result = await cancelOrderItem(id, itemId, customerId);
 
         return res.status(200).json(result);
 
@@ -248,6 +266,7 @@ module.exports = {
     createOrder,
     updateStatus,
     cancelCustomerOrder,
+    cancelCustomerOrderItem,
     updateOrderBranch,
     acceptOrderSubstitution,
     rejectOrderSubstitution,

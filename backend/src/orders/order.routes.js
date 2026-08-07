@@ -6,6 +6,7 @@ const {
     createOrder,
     updateStatus,
     cancelCustomerOrder,
+    cancelCustomerOrderItem,
     updateOrderBranch,
     acceptOrderSubstitution,
     rejectOrderSubstitution,
@@ -13,7 +14,6 @@ const {
     fetchCustomerOrders,
     fetchOrderById,
 } = require("./order.controller");
-
 
 router.post(
     "/",
@@ -23,11 +23,38 @@ router.post(
 );
 router.get("/customer/:customerId", fetchCustomerOrders);
 router.get("/:id", fetchOrderById);
-router.patch("/:id/status", updateStatus); 
-router.patch("/:id/cancel", cancelCustomerOrder);
-router.post("/manual", createManualOrder);
+router.patch(
+    "/:id/status",
+    authenticate,
+    authorize("pharmacist", "staff", "delivery"),
+    updateStatus
+);
+router.patch(
+    "/:id/cancel",
+    authenticate,
+    authorize("customer"),
+    cancelCustomerOrder
+);
+router.delete(
+    "/:id/items/:itemId",
+    authenticate,
+    authorize("customer"),
+    cancelCustomerOrderItem
+);
+router.patch(
+    "/:id/items/:itemId/cancel",
+    authenticate,
+    authorize("customer"),
+    cancelCustomerOrderItem
+);
+router.post(
+    "/manual",
+    authenticate,
+    authorize("staff", "pharmacist"),
+    createManualOrder
+);
 router.patch("/:id/change-branch", updateOrderBranch);
-router.patch( "/:id/accept-substitution", acceptOrderSubstitution);
+router.patch("/:id/accept-substitution", acceptOrderSubstitution);
 router.patch("/:id/reject-substitution", rejectOrderSubstitution);
 
 module.exports = router;
