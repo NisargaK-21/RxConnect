@@ -74,12 +74,25 @@ function DeliveryContent() {
     setBusyId(`pickup-${orderId}`);
     try {
       const data = await confirmPickup(orderId);
-      toast(data?.message || "Pickup confirmed! Status updated to Out for Delivery.", {
-        variant: "success",
-      });
+      toast(data?.message || "Pickup confirmed! Order is now out for delivery.", { variant: "success" });
       await refresh(false);
     } catch (err) {
-      toast(err?.response?.data?.message || "Pickup confirmation failed.", {
+      toast(err?.response?.data?.message || "Failed to confirm pickup.", {
+        variant: "error",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDeliverAction(orderId) {
+    setBusyId(`deliver-${orderId}`);
+    try {
+      await api.patch(`/delivery/jobs/${orderId}/deliver`);
+      toast("Order marked as Delivered successfully!", { variant: "success" });
+      await refresh(false);
+    } catch (err) {
+      toast(err?.response?.data?.message || "Failed to mark order as delivered.", {
         variant: "error",
       });
     } finally {
@@ -94,7 +107,8 @@ function DeliveryContent() {
       (j) =>
         String(j.order_reference || j.id || "").includes(q) ||
         (j.pickup_branch || "").toLowerCase().includes(q) ||
-        (j.delivery_address || j.dropoff_address || "").toLowerCase().includes(q)
+        (j.delivery_address || j.dropoff_address || "").toLowerCase().includes(q) ||
+        (j.customer_name || "").toLowerCase().includes(q)
     );
   }, [available, q]);
 
@@ -104,7 +118,8 @@ function DeliveryContent() {
       (j) =>
         String(j.id || j.order_reference || "").includes(q) ||
         (j.status || "").toLowerCase().includes(q) ||
-        (j.delivery_address || "").toLowerCase().includes(q)
+        (j.delivery_address || "").toLowerCase().includes(q) ||
+        (j.customer_name || "").toLowerCase().includes(q)
     );
   }, [mine, q]);
 
@@ -126,7 +141,7 @@ function DeliveryContent() {
               Delivery Jobs
             </h1>
             <p className="mt-1.5 text-sm text-slate-500">
-              Claim available packed orders and confirm pickup when starting your delivery route.
+              Claim available packed orders, confirm pickup, and mark deliveries complete.
             </p>
           </div>
           <div className="flex items-center gap-2 self-start md:self-end">
@@ -138,7 +153,7 @@ function DeliveryContent() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by order ID or address..."
+                placeholder="Search by order ID, customer or address..."
                 className="input-field pl-10 w-full sm:w-72"
               />
             </div>
@@ -229,47 +244,75 @@ function DeliveryContent() {
                 return (
                   <li
                     key={String(ref) + i}
-                    className="bg-white rounded-2xl border border-slate-200 shadow-sm card-hover p-5 animate-fade-in-up"
+                    className="bg-white rounded-2xl border border-slate-200 shadow-sm card-hover p-5 animate-fade-in-up flex flex-col justify-between"
                     style={{ animationDelay: `${Math.min(i * 40, 240)}ms` }}
                   >
-                    <header className="flex items-start justify-between gap-3 mb-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
-                          <span
-                            className="w-5 h-5"
-                            dangerouslySetInnerHTML={{ __html: ICONS.delivery }}
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-mono font-bold text-slate-900 truncate">
-                            Order #{ref}
+                    <div>
+                      <header className="flex items-start justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+                            <span
+                              className="w-5 h-5"
+                              dangerouslySetInnerHTML={{ __html: ICONS.delivery }}
+                            />
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5">Ready for pickup</div>
+                          <div className="min-w-0">
+                            <div className="font-mono font-bold text-slate-900 truncate">
+                              Order #{ref}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">
+                              Customer #{job.customer_id || "—"}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <StatusBadge status="Packed" size="sm" />
-                    </header>
+                        <StatusBadge status="Packed" size="sm" />
+                      </header>
 
-                    <div className="space-y-3 text-sm mb-5">
-                      <PinRow
-                        icon={ICONS.branches}
-                        label="Pickup Branch"
-                        text={job.pickup_branch || "Branch"}
-                        sub={job.pickup_branch_address || ""}
-                      />
-                      <PinRow
-                        icon={ICONS.location}
-                        label="Delivery Address"
-                        text={job.delivery_address || job.dropoff_address || "Customer Address"}
-                        sub={job.customer_name ? `Customer: ${job.customer_name}` : ""}
-                      />
+                      <div className="space-y-3 text-sm mb-4">
+                        <PinRow
+                          icon={ICONS.profile}
+                          label="Customer Details"
+                          text={job.customer_name || "Customer"}
+                          sub={job.customer_phone ? `Phone: ${job.customer_phone}` : ""}
+                        />
+                        <PinRow
+                          icon={ICONS.branches}
+                          label="Pickup Branch"
+                          text={job.pickup_branch || "Branch"}
+                          sub={job.pickup_branch_address || ""}
+                        />
+                        <PinRow
+                          icon={ICONS.location}
+                          label="Delivery Address"
+                          text={job.delivery_address || job.dropoff_address || "Customer Address"}
+                        />
+                        {Array.isArray(job.items) && job.items.length > 0 && (
+                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                            <div className="font-semibold text-slate-500 uppercase tracking-wider mb-1">Medicines</div>
+                            <div className="space-y-1">
+                              {job.items.map((it, idx) => (
+                                <div key={idx} className="flex justify-between text-slate-800">
+                                  <span>{it.medicine_name || `Medicine #${it.id}`} × {it.quantity}</span>
+                                  <span className="font-semibold">₹{(it.quantity * Number(it.unit_price || 0)).toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {Number(job.total_amount || 0) > 0 && (
+                          <div className="flex justify-between items-center text-xs font-semibold text-slate-700 pt-1">
+                            <span>Total Amount:</span>
+                            <span className="text-sm font-bold text-slate-900">₹{Number(job.total_amount).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => handleClaim(ref)}
                       disabled={busy}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-teal-500 to-emerald-500 shadow-lg shadow-teal-500/20 hover:from-teal-600 hover:to-emerald-600 btn-press transition focus-ring disabled:opacity-60"
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-teal-500 to-emerald-500 shadow-lg shadow-teal-500/20 hover:from-teal-600 hover:to-emerald-600 btn-press transition focus-ring disabled:opacity-60 mt-3"
                     >
                       {busy ? (
                         <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
@@ -300,7 +343,7 @@ function DeliveryContent() {
                 My Jobs (Assigned Deliveries)
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Confirm pickup when leaving the branch to transition order to Out for Delivery.
+                Confirm pickup to start delivery, and mark orders Delivered upon drop-off.
               </p>
             </div>
           </div>
@@ -331,55 +374,84 @@ function DeliveryContent() {
                 const isPacked = order.status === "Packed";
                 const isOutForDelivery = order.status === "Out for Delivery";
                 const isDelivered = order.status === "Delivered";
-                const busy = busyId === `pickup-${id}`;
+                const isPickupBusy = busyId === `pickup-${id}`;
+                const isDeliverBusy = busyId === `deliver-${id}`;
 
                 return (
                   <li
                     key={String(id) + i}
-                    className="bg-white rounded-2xl border border-slate-200 shadow-sm card-hover p-5 animate-fade-in-up"
+                    className="bg-white rounded-2xl border border-slate-200 shadow-sm card-hover p-5 animate-fade-in-up flex flex-col justify-between"
                     style={{ animationDelay: `${Math.min(i * 40, 240)}ms` }}
                   >
-                    <header className="flex items-start justify-between gap-3 mb-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
-                          <span
-                            className="w-5 h-5"
-                            dangerouslySetInnerHTML={{ __html: ICONS.tracking }}
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-mono font-bold text-slate-900 truncate">
-                            Order #{id}
+                    <div>
+                      <header className="flex items-start justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
+                            <span
+                              className="w-5 h-5"
+                              dangerouslySetInnerHTML={{ __html: ICONS.tracking }}
+                            />
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5">Assigned to you</div>
+                          <div className="min-w-0">
+                            <div className="font-mono font-bold text-slate-900 truncate">
+                              Order #{id}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">
+                              Customer #{order.customer_id || "—"}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <StatusBadge status={order.status} size="sm" />
-                    </header>
+                        <StatusBadge status={order.status} size="sm" />
+                      </header>
 
-                    <div className="space-y-3 text-sm mb-5">
-                      <PinRow
-                        icon={ICONS.branches}
-                        label="Pickup Branch"
-                        text={order.branch_name || order.pickup_branch || "Branch"}
-                        sub={order.pickup_branch_address || ""}
-                      />
-                      <PinRow
-                        icon={ICONS.location}
-                        label="Delivery Address"
-                        text={order.delivery_address || order.dropoff_address || "Customer Address"}
-                        sub={order.customer_name ? `Customer: ${order.customer_name}` : ""}
-                      />
+                      <div className="space-y-3 text-sm mb-4">
+                        <PinRow
+                          icon={ICONS.profile}
+                          label="Customer Details"
+                          text={order.customer_name || "Customer"}
+                          sub={order.customer_phone ? `Phone: ${order.customer_phone}` : ""}
+                        />
+                        <PinRow
+                          icon={ICONS.branches}
+                          label="Pickup Branch"
+                          text={order.branch_name || order.pickup_branch || "Branch"}
+                          sub={order.pickup_branch_address || ""}
+                        />
+                        <PinRow
+                          icon={ICONS.location}
+                          label="Delivery Address"
+                          text={order.delivery_address || order.dropoff_address || "Customer Address"}
+                        />
+                        {Array.isArray(order.items) && order.items.length > 0 && (
+                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                            <div className="font-semibold text-slate-500 uppercase tracking-wider mb-1">Medicines</div>
+                            <div className="space-y-1">
+                              {order.items.map((it, idx) => (
+                                <div key={idx} className="flex justify-between text-slate-800">
+                                  <span>{it.medicine_name || `Medicine #${it.id}`} × {it.quantity}</span>
+                                  <span className="font-semibold">₹{(it.quantity * Number(it.unit_price || 0)).toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {Number(order.total_amount || 0) > 0 && (
+                          <div className="flex justify-between items-center text-xs font-semibold text-slate-700 pt-1">
+                            <span>Total Amount:</span>
+                            <span className="text-sm font-bold text-slate-900">₹{Number(order.total_amount).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {isPacked ? (
                       <button
                         type="button"
                         onClick={() => handlePickupAction(id)}
-                        disabled={busy}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-orange-500/20 hover:from-amber-600 hover:to-orange-600 btn-press transition focus-ring disabled:opacity-60"
+                        disabled={isPickupBusy}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-orange-500/20 hover:from-amber-600 hover:to-orange-600 btn-press transition focus-ring disabled:opacity-60 mt-3"
                       >
-                        {busy ? (
+                        {isPickupBusy ? (
                           <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
                         ) : (
                           <span
@@ -390,15 +462,24 @@ function DeliveryContent() {
                         Confirm Pickup
                       </button>
                     ) : isOutForDelivery ? (
-                      <div className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-center bg-blue-50 border border-blue-100 text-blue-800 flex items-center justify-center gap-1.5">
-                        <span
-                          className="w-4 h-4 text-blue-600"
-                          dangerouslySetInnerHTML={{ __html: ICONS.tracking }}
-                        />
-                        Out for Delivery
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeliverAction(id)}
+                        disabled={isDeliverBusy}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/20 hover:from-emerald-600 hover:to-teal-600 btn-press transition focus-ring disabled:opacity-60 mt-3"
+                      >
+                        {isDeliverBusy ? (
+                          <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <span
+                            className="w-4 h-4"
+                            dangerouslySetInnerHTML={{ __html: ICONS.check }}
+                          />
+                        )}
+                        Mark Delivered
+                      </button>
                     ) : isDelivered ? (
-                      <div className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-center bg-emerald-50 border border-emerald-100 text-emerald-800 flex items-center justify-center gap-1.5">
+                      <div className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-center bg-emerald-50 border border-emerald-100 text-emerald-800 flex items-center justify-center gap-1.5 mt-3">
                         <span
                           className="w-4 h-4 text-emerald-600"
                           dangerouslySetInnerHTML={{ __html: ICONS.check }}
@@ -406,7 +487,7 @@ function DeliveryContent() {
                         Delivered
                       </div>
                     ) : (
-                      <div className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-center bg-slate-50 border border-slate-100 text-slate-600">
+                      <div className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-center bg-slate-50 border border-slate-100 text-slate-600 mt-3">
                         {order.status}
                       </div>
                     )}

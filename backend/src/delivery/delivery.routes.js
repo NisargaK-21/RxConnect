@@ -15,25 +15,25 @@ router.get(
 
 router.post(
   "/jobs/:orderId/claim",
-  authorize("delivery", "admin"),
+  authorize("delivery"),
   deliveryController.claimJob
 );
 
 router.patch(
   "/jobs/:orderId/claim",
-  authorize("delivery", "admin"),
+  authorize("delivery"),
   deliveryController.claimJob
 );
 
 router.patch(
   "/jobs/:orderId/pickup",
-  authorize("delivery", "admin"),
+  authorize("delivery"),
   deliveryController.confirmPickup
 );
 
 router.patch(
   "/jobs/:orderId/deliver",
-  authorize("delivery", "admin"),
+  authorize("delivery"),
   deliveryController.confirmDelivery
 );
 

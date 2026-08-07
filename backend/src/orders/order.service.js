@@ -282,7 +282,15 @@ const validTransitions = {
     "Out for Delivery": "Delivered",
 };
 
-const updateOrderStatus = async (orderId, newStatus) => {
+const updateOrderStatus = async (orderId, newStatus, userRole = null) => {
+    if (userRole === "admin") {
+        throw new Error("Forbidden: Admin has read-only access to orders.");
+    }
+
+    if (newStatus === "Delivered" && userRole !== "delivery") {
+        throw new Error("Only Delivery Partner can mark an order as Delivered.");
+    }
+
     const result = await pool.query(
         `SELECT * FROM orders WHERE id = $1`,
         [orderId]
@@ -451,6 +459,136 @@ const cancelOrder = async (orderId, customerId) => {
             order: updatedOrder.rows[0]
         };
 
+    } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+
+const cancelOrderItem = async (orderId, orderItemId, customerId) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const orderResult = await client.query(
+            `SELECT * FROM orders WHERE id = $1;`,
+            [orderId]
+        );
+
+        if (orderResult.rowCount === 0) {
+            throw new Error("Order not found");
+        }
+
+        const order = orderResult.rows[0];
+
+        if (order.customer_id !== Number(customerId)) {
+            throw new Error("You can only cancel items from your own orders");
+        }
+
+        if (
+            order.status !== "Placed" &&
+            order.status !== "Pending Pharmacist Review" &&
+            order.status !== "Verified"
+        ) {
+            throw new Error("Cannot cancel items once order is Packed or later");
+        }
+
+        const itemResult = await client.query(
+            `
+            SELECT oi.id,
+                   oi.order_id,
+                   oi.medicine_id,
+                   oi.quantity,
+                   m.requires_prescription,
+                   p.status AS prescription_status
+            FROM order_items oi
+            JOIN medicines m ON oi.medicine_id = m.id
+            LEFT JOIN prescriptions p ON p.order_item_id = oi.id
+            WHERE oi.id = $1 AND oi.order_id = $2;
+            `,
+            [orderItemId, orderId]
+        );
+
+        if (itemResult.rowCount === 0) {
+            throw new Error("Order item not found");
+        }
+
+        const item = itemResult.rows[0];
+
+        if (item.requires_prescription) {
+            const isApproved = order.status === "Verified" || item.prescription_status === "approved";
+            if (isApproved) {
+                await restoreStock(client, order.branch_id, item.medicine_id, item.quantity);
+            } else {
+                await releaseReservedStock(client, order.branch_id, item.medicine_id, item.quantity);
+            }
+        } else {
+            await restoreStock(client, order.branch_id, item.medicine_id, item.quantity);
+        }
+
+        await client.query(`DELETE FROM order_items WHERE id = $1;`, [orderItemId]);
+
+        const remainingResult = await client.query(
+            `SELECT COUNT(*)::int AS count FROM order_items WHERE order_id = $1;`,
+            [orderId]
+        );
+
+        const remainingCount = remainingResult.rows[0].count;
+        let updatedOrder = order;
+
+        if (remainingCount === 0) {
+            const cancelRes = await client.query(
+                `
+                UPDATE orders
+                SET status = 'Cancelled',
+                    status_updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1
+                RETURNING *;
+                `,
+                [orderId]
+            );
+            updatedOrder = cancelRes.rows[0];
+        } else if (order.status === "Pending Pharmacist Review") {
+            const pendingRxResult = await client.query(
+                `
+                SELECT oi.id
+                FROM order_items oi
+                JOIN medicines m ON oi.medicine_id = m.id
+                LEFT JOIN prescriptions p ON p.order_item_id = oi.id
+                WHERE oi.order_id = $1
+                  AND m.requires_prescription = TRUE
+                  AND (p.id IS NULL OR p.status <> 'approved')
+                LIMIT 1;
+                `,
+                [orderId]
+            );
+
+            if (pendingRxResult.rowCount === 0) {
+                const updateRes = await client.query(
+                    `
+                    UPDATE orders
+                    SET status = 'Placed',
+                        status_updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1
+                    RETURNING *;
+                    `,
+                    [orderId]
+                );
+                updatedOrder = updateRes.rows[0];
+            }
+        }
+
+        await client.query("COMMIT");
+
+        return {
+            success: true,
+            message: "Order item cancelled successfully",
+            remainingCount,
+            order: updatedOrder,
+        };
     } catch (err) {
         await client.query("ROLLBACK");
         throw err;
@@ -882,13 +1020,11 @@ const getOrderById = async (orderId) => {
 module.exports = {
     placeOrder,
     updateOrderStatus,
-     cancelOrder,
-
-     changeOrderBranch,
-     acceptSubstitution,
-     rejectSubstitution,
-
-   getCustomerOrders,
-     getOrderById,
-
+    cancelOrder,
+    cancelOrderItem,
+    changeOrderBranch,
+    acceptSubstitution,
+    rejectSubstitution,
+    getCustomerOrders,
+    getOrderById,
 };

@@ -126,6 +126,26 @@ function OrderTrackingContent() {
 
   const branchName = (id) => branches.find((b) => b.id === id)?.name || `Branch #${id}`;
 
+  async function handleCancelItem(orderId, itemId) {
+    try {
+      await api.delete(`/orders/${orderId}/items/${itemId}`, { data: { customerId } });
+      toast("Item cancelled", { variant: "success" });
+      const res = await api.get(`/orders/${orderId}`);
+      const items = res.data?.items || [];
+      const orderData = res.data?.order || res.data?.data || selectedOrder;
+      if (items.length === 0 || orderData.status === "Cancelled") {
+        setSelectedOrder(null);
+      } else {
+        setSelectedOrder({ ...orderData, items });
+      }
+      fetchOrders(false);
+    } catch (err) {
+      toast(err?.response?.data?.message || "Failed to cancel item", { variant: "error" });
+    }
+  }
+
+  const canCancelItems = selectedOrder && ["Placed", "placed", "Pending Pharmacist Review", "pending pharmacist review", "Verified", "verified"].includes(selectedOrder.status);
+
   return (
     <AppShell activeRoute="/order-tracking">
       <div className="animate-fade-in-up">
@@ -311,7 +331,12 @@ function OrderTrackingContent() {
                 </KV>
               </div>
               <div>
-                <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Items</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Items</div>
+                  {canCancelItems && (selectedOrder.items || []).length > 1 && (
+                    <span className="text-[11px] text-slate-400 font-medium">Individual item cancellation active</span>
+                  )}
+                </div>
                 {selectedOrder.items?.length ? (
                   <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 overflow-hidden">
                     {selectedOrder.items.map((it) => (
@@ -320,8 +345,20 @@ function OrderTrackingContent() {
                           <div className="font-medium text-slate-900">{it.medicine_name || `Medicine #${it.medicine_id}`}</div>
                           <div className="text-xs text-slate-500 mt-0.5">Qty {it.quantity} × ₹{it.unit_price ?? it.price}</div>
                         </div>
-                        <div className="font-semibold text-slate-900 tabular-nums">
-                          ₹{((it.quantity || 0) * Number(it.unit_price ?? it.price ?? 0)).toLocaleString()}
+                        <div className="flex items-center gap-3">
+                          <div className="font-semibold text-slate-900 tabular-nums">
+                            ₹{((it.quantity || 0) * Number(it.unit_price ?? it.price ?? 0)).toLocaleString()}
+                          </div>
+                          {canCancelItems && (
+                            <button
+                              type="button"
+                              onClick={() => handleCancelItem(selectedOrder.id, it.id)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors"
+                              title="Cancel this item"
+                            >
+                              Cancel Item
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

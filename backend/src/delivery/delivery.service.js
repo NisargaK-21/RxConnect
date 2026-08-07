@@ -5,15 +5,30 @@ const getAvailableJobs = async (user) => {
     SELECT
       o.id,
       o.id AS order_reference,
+      o.customer_id,
       o.status,
       o.created_at,
       b.name AS pickup_branch,
       b.address AS pickup_branch_address,
       u.address AS delivery_address,
-      u.name AS customer_name
+      u.name AS customer_name,
+      u.phone AS customer_phone,
+      COALESCE(SUM(oi.quantity * oi.unit_price), 0)::numeric(10,2) AS total_amount,
+      COALESCE(
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'id', oi.id,
+            'medicine_name', m.name,
+            'quantity', oi.quantity,
+            'unit_price', oi.unit_price
+          )
+        ) FILTER (WHERE oi.id IS NOT NULL), '[]'
+      ) AS items
     FROM orders o
     JOIN branches b ON o.branch_id = b.id
     JOIN users u ON o.customer_id = u.id
+    LEFT JOIN order_items oi ON o.id = oi.order_id
+    LEFT JOIN medicines m ON oi.medicine_id = m.id
     WHERE o.status = 'Packed'
       AND o.delivery_partner_id IS NULL
   `;
@@ -24,7 +39,7 @@ const getAvailableJobs = async (user) => {
     params.push(user.branch_id);
   }
 
-  query += ` ORDER BY o.created_at ASC`;
+  query += ` GROUP BY o.id, b.id, u.id ORDER BY o.created_at ASC`;
 
   const result = await pool.query(query, params);
   return result.rows;
@@ -174,6 +189,7 @@ const getMyJobs = async (deliveryPartnerId) => {
     SELECT
       o.id,
       o.id AS order_reference,
+      o.customer_id,
       o.status,
       o.created_at,
       o.status_updated_at,
@@ -182,12 +198,27 @@ const getMyJobs = async (deliveryPartnerId) => {
       b.name AS branch_name,
       b.address AS pickup_branch_address,
       u.address AS delivery_address,
-      u.name AS customer_name
+      u.name AS customer_name,
+      u.phone AS customer_phone,
+      COALESCE(SUM(oi.quantity * oi.unit_price), 0)::numeric(10,2) AS total_amount,
+      COALESCE(
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'id', oi.id,
+            'medicine_name', m.name,
+            'quantity', oi.quantity,
+            'unit_price', oi.unit_price
+          )
+        ) FILTER (WHERE oi.id IS NOT NULL), '[]'
+      ) AS items
     FROM orders o
     JOIN branches b ON o.branch_id = b.id
     JOIN users u ON o.customer_id = u.id
+    LEFT JOIN order_items oi ON o.id = oi.order_id
+    LEFT JOIN medicines m ON oi.medicine_id = m.id
     WHERE o.delivery_partner_id = $1
       AND o.status IN ('Packed', 'Out for Delivery', 'Delivered')
+    GROUP BY o.id, b.id, u.id
     ORDER BY o.created_at DESC
     `,
     [deliveryPartnerId]

@@ -12,7 +12,7 @@ const {
 router.post(
   "/upload",
   authenticate,
-  authorize("customer", "admin", "staff"),
+  authorize("customer", "staff"),
   upload.single("prescription"),
   validatePrescriptionUpload,
   prescriptionController.uploadPrescription
@@ -28,7 +28,7 @@ router.get(
 router.patch(
   "/:id/review",
   authenticate,
-  authorize("pharmacist", "admin", "staff"),
+  authorize("pharmacist"),
   prescriptionController.reviewPrescription
 );
 
@@ -49,14 +49,14 @@ router.get(
 router.patch(
   "/:id/standing",
   authenticate,
-  authorize("pharmacist", "admin"),
+  authorize("pharmacist"),
   prescriptionController.updateStandingApproval
 );
 
 router.post(
   "/release-expired-holds",
   authenticate,
-  authorize("admin", "pharmacist", "staff"),
+  authorize("pharmacist", "staff"),
   prescriptionController.releaseExpiredHolds
 );
 

@@ -12,9 +12,7 @@ export default function AppShell({ children, variant = "app" }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { cartCount } = useCart();
-
 
   useEffect(() => {
     setUser(getUser());
@@ -50,20 +48,6 @@ export default function AppShell({ children, variant = "app" }) {
       <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-5">
-            {isAppVariant && nav.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="hidden lg:flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all btn-press focus-ring"
-                aria-label="Toggle sidebar"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <path d="M9 3v18" />
-                </svg>
-              </button>
-            )}
-
             <Link
               href={user ? (user.role === "customer" ? "/catalog" : "/dashboard") : "/"}
               className="flex items-center gap-2.5 group"
@@ -192,7 +176,7 @@ export default function AppShell({ children, variant = "app" }) {
               <button
                 type="button"
                 onClick={() => setMobileNavOpen(!mobileNavOpen)}
-                className="xl:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition btn-press focus-ring"
+                className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition btn-press focus-ring"
                 aria-label="Toggle navigation"
               >
                 {mobileNavOpen ? (
@@ -213,7 +197,7 @@ export default function AppShell({ children, variant = "app" }) {
         </div>
 
         {mobileNavOpen && user && (
-          <div className="xl:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-1.5 animate-fade-in-down">
+          <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-1.5 animate-fade-in-down">
             {nav.map((item, index) => {
               const active =
                 pathname === item.href ||
@@ -241,49 +225,6 @@ export default function AppShell({ children, variant = "app" }) {
       </header>
 
       <div className="flex flex-1 w-full mx-auto max-w-[1600px]">
-        {isAppVariant && sidebarOpen && nav.length > 0 && (
-          <aside className="hidden lg:flex w-64 shrink-0 py-6 px-4 animate-slide-in-left">
-            <div className="flex flex-col gap-1 w-full sticky top-24 h-fit">
-              {nav.map((item, index) => {
-                const active =
-                  pathname === item.href ||
-                  (item.href !== "/" && item.href !== "/dashboard" && pathname.startsWith(item.href));
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`animate-fade-in-up stagger-${Math.min(index + 1, 8)} group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200 relative overflow-hidden ${
-                      active
-                        ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-lg shadow-teal-500/25"
-                        : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm border border-transparent hover:border-slate-200"
-                    }`}
-                  >
-                    <span className={`relative z-10 flex items-center justify-center h-7 w-7 rounded-lg ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 group-hover:bg-teal-50 group-hover:text-teal-600"} transition-colors`}
-                    dangerouslySetInnerHTML={{ __html: item.icon }}
-                    />
-                    <span className="relative z-10">{item.label}</span>
-                  </Link>
-                );
-              })}
-
-              <div className="mt-6 mx-3">
-                <div className="rounded-2xl bg-gradient-to-br from-teal-500 via-emerald-500 to-teal-600 p-5 text-white shadow-xl shadow-teal-500/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M12 8v4l3 3" />
-                    </svg>
-                    <span className="text-sm font-bold">Pro Tip</span>
-                  </div>
-                  <p className="text-[12px] text-teal-50 leading-relaxed">
-                    Streamline your workflow by using keyboard shortcuts and batch processing.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </aside>
-        )}
-
         <main className="flex-1 w-full px-4 py-8 sm:px-6 lg:px-8 animate-fade-in-up overflow-hidden">
           {children}
         </main>

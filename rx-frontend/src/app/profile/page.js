@@ -171,16 +171,16 @@ function ProfileContent() {
             </div>
 
             {loading ? (
-              <div className="grid grid-cols-2 gap-4 stagger">
+              <div className="grid grid-cols-2 gap-3 stagger">
                 <div className="animate-fade-in-up"><SkeletonCard lines={1} /></div>
                 <div className="animate-fade-in-up" style={{ animationDelay: "60ms" }}><SkeletonCard lines={1} /></div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4 stagger">
-                <StatCard title="Role" value={role ? String(role).charAt(0).toUpperCase() + String(role).slice(1) : "—"} icon={ICONS.shield} accent="violet" />
-                <StatCard title="Branch" value={user?.branch_id ? `#${user.branch_id}` : "System-wide"} icon={ICONS.branches} accent="teal" />
-                <StatCard title="User ID" value={user?.id ? `#${user.id}` : "—"} icon={ICONS.home} accent="indigo" />
-                <StatCard title="Status" value={user?.id ? "Active" : "Guest"} icon={ICONS.check} accent="emerald" />
+              <div className="grid grid-cols-2 gap-3 stagger">
+                <ProfileTile title="Role" value={role ? String(role).charAt(0).toUpperCase() + String(role).slice(1) : "—"} icon={ICONS.shield} />
+                <ProfileTile title="Branch" value={user?.branch_id ? `#${user.branch_id}` : "System-wide"} icon={ICONS.branches} />
+                <ProfileTile title="User ID" value={user?.id ? `#${user.id}` : "—"} icon={ICONS.home} />
+                <ProfileTile title="Status" value={user?.id ? "Active" : "Guest"} icon={ICONS.check} />
               </div>
             )}
           </section>
@@ -309,6 +309,21 @@ function Info({ k, v }) {
     <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
       <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{k}</div>
       <div className="mt-1 text-slate-800 font-medium">{v}</div>
+    </div>
+  );
+}
+
+function ProfileTile({ title, value, icon }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 shadow-sm card-hover animate-fade-in-up">
+      <div
+        className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0"
+        dangerouslySetInnerHTML={{ __html: icon }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{title}</div>
+        <div className="mt-0.5 text-sm font-bold text-slate-800 truncate">{value}</div>
+      </div>
     </div>
   );
 }
