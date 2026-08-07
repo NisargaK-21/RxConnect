@@ -11,11 +11,16 @@ export async function getMyDeliveryJobs() {
 }
 
 export async function claimJob(orderId) {
-  const res = await api.patch(`/delivery/jobs/${orderId}/claim`);
+  const res = await api.post(`/delivery/jobs/${orderId}/claim`);
   return res.data;
 }
 
 export async function confirmPickup(orderId) {
   const res = await api.patch(`/delivery/jobs/${orderId}/pickup`);
+  return res.data;
+}
+
+export async function confirmDelivery(orderId) {
+  const res = await api.patch(`/delivery/jobs/${orderId}/deliver`);
   return res.data;
 }

@@ -12,45 +12,52 @@ const {
 router.post(
   "/upload",
   authenticate,
-  authorize("customer"),
+  authorize("customer", "admin", "staff"),
   upload.single("prescription"),
   validatePrescriptionUpload,
   prescriptionController.uploadPrescription
 );
+
 router.get(
   "/pending",
   authenticate,
-  authorize("pharmacist"),
+  authorize("pharmacist", "admin", "staff"),
   prescriptionController.getPendingPrescriptions
 );
+
 router.patch(
   "/:id/review",
   authenticate,
-  authorize("pharmacist"),
+  authorize("pharmacist", "admin", "staff"),
   prescriptionController.reviewPrescription
 );
+
 router.get(
   "/orders/:orderId/verification-logs",
   authenticate,
-  authorize("pharmacist"),
+  authorize("pharmacist", "admin", "staff"),
   prescriptionController.getVerificationLogsByOrder
 );
+
 router.get(
   "/:id",
   authenticate,
-  authorize("pharmacist"),
+  authorize("pharmacist", "admin", "staff"),
   prescriptionController.getPrescriptionById
 );
+
 router.patch(
   "/:id/standing",
   authenticate,
-  authorize("pharmacist"),
+  authorize("pharmacist", "admin"),
   prescriptionController.updateStandingApproval
 );
+
 router.post(
   "/release-expired-holds",
   authenticate,
-  authorize("admin", "pharmacist"),
+  authorize("admin", "pharmacist", "staff"),
   prescriptionController.releaseExpiredHolds
 );
+
 module.exports = router;

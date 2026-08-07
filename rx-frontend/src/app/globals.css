@@ -296,6 +296,12 @@ body {
   background: #ffffff;
 }
 
+/* Hide native password reveal icons */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 /* Checkmark animation */
 .checkmark-svg {
   stroke-dasharray: 100;

@@ -48,7 +48,7 @@ export default function AppShell({ children, variant = "app" }) {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-soft text-slate-900 font-sans">
       <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.06)]">
-        <div className="mx-auto flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-5">
             {isAppVariant && nav.length > 0 && (
               <button
@@ -86,8 +86,8 @@ export default function AppShell({ children, variant = "app" }) {
             </Link>
 
             {isAppVariant && (
-              <nav className="hidden xl:flex items-center gap-1 ml-6 border-l border-slate-200 pl-6">
-                {nav.slice(0, 5).map((item, index) => {
+              <nav className="hidden lg:flex items-center gap-1 ml-4 border-l border-slate-200 pl-4">
+                {nav.slice(0, 6).map((item, index) => {
                   const active =
                     pathname === item.href ||
                     (item.href !== "/" && item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -95,15 +95,15 @@ export default function AppShell({ children, variant = "app" }) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`animate-fade-in-up stagger-${index + 1} flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
+                      className={`animate-fade-in-up stagger-${index + 1} flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
                         active
                           ? "bg-gradient-to-r from-teal-50 to-emerald-50 text-teal-700 shadow-sm border border-teal-100"
                           : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                       }`}
                     >
-                      <span className={active ? "text-teal-600" : "text-slate-400"}
+                      <span className={`w-4 h-4 ${active ? "text-teal-600" : "text-slate-400"}`}
                       dangerouslySetInnerHTML={{ __html: item.icon }}/>
-                      {item.label}
+                      <span className="whitespace-nowrap">{item.label}</span>
                     </Link>
                   );
                 })}
@@ -244,11 +244,6 @@ export default function AppShell({ children, variant = "app" }) {
         {isAppVariant && sidebarOpen && nav.length > 0 && (
           <aside className="hidden lg:flex w-64 shrink-0 py-6 px-4 animate-slide-in-left">
             <div className="flex flex-col gap-1 w-full sticky top-24 h-fit">
-              <div className="mb-2 px-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Navigation
-                </span>
-              </div>
               {nav.map((item, index) => {
                 const active =
                   pathname === item.href ||

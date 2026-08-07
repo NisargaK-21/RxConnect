@@ -220,25 +220,42 @@ function ReviewPrescriptionsContent() {
                 <KV k="Status"><StatusBadge status={open.status || "Pending"} size="sm" /></KV>
               </div>
               {open.file_url ? (
-                <a
-                  href={assetUrl(open.file_url)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 hover:border-teal-300 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-teal-500/20">
-                        <span className="w-5 h-5" dangerouslySetInnerHTML={{ __html: ICONS.eye }} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-900 truncate">Prescription file</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Open in new tab</div>
-                      </div>
-                    </div>
-                    <span className="w-4 h-4 text-slate-500 shrink-0" dangerouslySetInnerHTML={{ __html: ICONS.arrowRight }} />
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 overflow-hidden flex items-center justify-center min-h-[220px]">
+                    {open.file_url.toLowerCase().endsWith(".pdf") ? (
+                      <iframe
+                        src={assetUrl(open.file_url)}
+                        title="Prescription PDF"
+                        className="w-full h-80 rounded-xl border-0"
+                      />
+                    ) : (
+                      <img
+                        src={assetUrl(open.file_url)}
+                        alt="Prescription Document"
+                        className="max-h-80 w-auto object-contain rounded-xl shadow-xs"
+                      />
+                    )}
                   </div>
-                </a>
+                  <a
+                    href={assetUrl(open.file_url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3.5 hover:border-teal-300 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-teal-500/20">
+                          <span className="w-4 h-4" dangerouslySetInnerHTML={{ __html: ICONS.eye }} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-slate-900 truncate">Open full resolution in new tab</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">{open.file_url}</div>
+                        </div>
+                      </div>
+                      <span className="w-4 h-4 text-slate-500 shrink-0" dangerouslySetInnerHTML={{ __html: ICONS.arrowRight }} />
+                    </div>
+                  </a>
+                </div>
               ) : (
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
                   <EmptyState icon="search" title="No document attached" size="sm" />

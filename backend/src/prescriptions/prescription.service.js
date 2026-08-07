@@ -115,51 +115,46 @@ const getPendingPrescriptions = async (
   sort
 ) => {
   const offset = (page - 1) * limit;
-
-  const query = `
+  const params = [];
+  let query = `
     SELECT
         p.id AS prescription_id,
         p.file_url,
         p.status,
-
         o.id AS order_id,
-
+        o.branch_id,
         u.id AS customer_id,
         u.name AS customer_name,
-
         oi.quantity,
-
         m.id AS medicine_id,
         m.name AS medicine_name
-
     FROM prescriptions p
-
     JOIN order_items oi
       ON p.order_item_id = oi.id
-
     JOIN orders o
       ON oi.order_id = o.id
-
     JOIN users u
       ON o.customer_id = u.id
-
     JOIN medicines m
       ON oi.medicine_id = m.id
-
-    WHERE
-      p.status = 'pending'
-      AND o.branch_id = $1
-
-    ORDER BY p.id ${sort}
-    LIMIT $2
-    OFFSET $3;
+    WHERE p.status = 'pending'
   `;
 
-  const result = await pool.query(query, [
-    branchId,
-    limit,
-    offset
-  ]);
+  if (branchId) {
+    params.push(branchId);
+    query += ` AND o.branch_id = $${params.length}`;
+  }
+
+  const sanitizedSort = sort === "ASC" || sort === "asc" ? "ASC" : "DESC";
+  query += ` ORDER BY p.id ${sanitizedSort}`;
+
+  params.push(limit);
+  query += ` LIMIT $${params.length}`;
+
+  params.push(offset);
+  query += ` OFFSET $${params.length};`;
+
+  const result = await pool.query(query, params);
 
   return result.rows;
 };

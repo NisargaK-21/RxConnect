@@ -101,7 +101,7 @@ export default function SignupForm() {
               Create your account
             </h1>
             <p className="mt-1.5 text-sm text-slate-500">
-              Start your 14-day free trial. No credit card needed.
+              Sign up to access the RxConnect platform.
             </p>
           </div>
 
