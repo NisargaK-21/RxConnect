@@ -21,8 +21,18 @@ router.post(
     authorize("customer"),
     createOrder
 );
-router.get("/customer/:customerId", fetchCustomerOrders);
-router.get("/:id", fetchOrderById);
+router.get(
+    "/customer/:customerId",
+    authenticate,
+    authorize("customer", "pharmacist", "staff", "admin"),
+    fetchCustomerOrders
+);
+router.get(
+    "/:id",
+    authenticate,
+    authorize("customer", "pharmacist", "staff", "admin", "delivery"),
+    fetchOrderById
+);
 router.patch(
     "/:id/status",
     authenticate,
@@ -53,8 +63,23 @@ router.post(
     authorize("staff", "pharmacist"),
     createManualOrder
 );
-router.patch("/:id/change-branch", updateOrderBranch);
-router.patch("/:id/accept-substitution", acceptOrderSubstitution);
-router.patch("/:id/reject-substitution", rejectOrderSubstitution);
+router.patch(
+    "/:id/change-branch",
+    authenticate,
+    authorize("customer", "pharmacist", "staff", "admin"),
+    updateOrderBranch
+);
+router.patch(
+    "/:id/accept-substitution",
+    authenticate,
+    authorize("customer", "pharmacist", "staff", "admin"),
+    acceptOrderSubstitution
+);
+router.patch(
+    "/:id/reject-substitution",
+    authenticate,
+    authorize("customer", "pharmacist", "staff", "admin"),
+    rejectOrderSubstitution
+);
 
 module.exports = router;

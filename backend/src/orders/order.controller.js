@@ -1,14 +1,4 @@
-const {
-    placeOrder,
-    updateOrderStatus,
-    cancelOrder,
-    cancelOrderItem,
-    changeOrderBranch,
-    acceptSubstitution,
-    rejectSubstitution,
-    getCustomerOrders,
-    getOrderById,
-} = require("./order.service");
+const orderService = require("./order.service");
 const {
     placeManualOrder,
 } = require("./manualOrder.service");
@@ -17,7 +7,7 @@ const createOrder = async (req, res) => {
     try {
         const { branchId, items } = req.body;
 
-        const result = await placeOrder(
+        const result = await orderService.placeOrder(
             req.user.id,
             branchId,
             items
@@ -108,7 +98,7 @@ const updateStatus = async (req, res) => {
             });
         }
 
-        const result = await updateOrderStatus(id, status, userRole);
+        const result = await orderService.updateOrderStatus(id, status, userRole);
 
         return res.status(200).json(result);
 
@@ -124,7 +114,7 @@ const cancelCustomerOrder = async (req, res) => {
     try {
         const { id } = req.params;
         const customerId = req.user?.id || req.body?.customerId || null;
-        const result = await cancelOrder(id, customerId);
+        const result = await orderService.cancelOrder(id, customerId);
 
         return res.status(200).json(result);
 
@@ -140,7 +130,7 @@ const cancelCustomerOrderItem = async (req, res) => {
     try {
         const { id, itemId } = req.params;
         const customerId = req.user?.id || req.body?.customerId || null;
-        const result = await cancelOrderItem(id, itemId, customerId);
+        const result = await orderService.cancelOrderItem(id, itemId, customerId);
 
         return res.status(200).json(result);
 
@@ -156,8 +146,19 @@ const updateOrderBranch = async (req, res) => {
     try {
         const { id } = req.params;
         const { branchId } = req.body;
+        const user = req.user;
 
-        const result = await changeOrderBranch(
+        if (user && user.role === "customer") {
+            const existingOrder = await orderService.getOrderById(id);
+            if (String(existingOrder.order.customer_id) !== String(user.id)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Forbidden: You cannot modify another user's order",
+                });
+            }
+        }
+
+        const result = await orderService.changeOrderBranch(
             id,
             branchId
         );
@@ -175,8 +176,16 @@ const updateOrderBranch = async (req, res) => {
 const fetchCustomerOrders = async (req, res) => {
     try {
         const { customerId } = req.params;
+        const user = req.user;
 
-        const result = await getCustomerOrders(customerId);
+        if (user && user.role === "customer" && String(user.id) !== String(customerId)) {
+            return res.status(403).json({
+                success: false,
+                message: "Forbidden: You cannot access another user's orders",
+            });
+        }
+
+        const result = await orderService.getCustomerOrders(customerId);
 
         return res.status(200).json(result);
 
@@ -191,6 +200,17 @@ const fetchCustomerOrders = async (req, res) => {
 const acceptOrderSubstitution = async (req, res) => {
     try {
         const { id } = req.params;
+        const user = req.user;
+
+        if (user && user.role === "customer") {
+            const existingOrder = await orderService.getOrderById(id);
+            if (String(existingOrder.order.customer_id) !== String(user.id)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Forbidden: You cannot modify another user's order",
+                });
+            }
+        }
 
         const {
             orderItemId,
@@ -198,7 +218,7 @@ const acceptOrderSubstitution = async (req, res) => {
             medicineId
         } = req.body;
 
-        const result = await acceptSubstitution(
+        const result = await orderService.acceptSubstitution(
             id,
             orderItemId,
             branchId,
@@ -218,8 +238,20 @@ const acceptOrderSubstitution = async (req, res) => {
 const rejectOrderSubstitution = async (req, res) => {
     try {
         const { id } = req.params;
+        const user = req.user;
+
+        if (user && user.role === "customer") {
+            const existingOrder = await orderService.getOrderById(id);
+            if (String(existingOrder.order.customer_id) !== String(user.id)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Forbidden: You cannot modify another user's order",
+                });
+            }
+        }
+
         const { orderItemId } = req.body;
-        const result = await rejectSubstitution(
+        const result = await orderService.rejectSubstitution(
             id,
             orderItemId
         );
@@ -236,8 +268,16 @@ const rejectOrderSubstitution = async (req, res) => {
 const fetchOrderById = async (req, res) => {
     try {
         const { id } = req.params;
+        const user = req.user;
 
-        const result = await getOrderById(id);
+        const result = await orderService.getOrderById(id);
+
+        if (user && user.role === "customer" && String(result.order.customer_id) !== String(user.id)) {
+            return res.status(403).json({
+                success: false,
+                message: "Forbidden: You cannot access another user's order",
+            });
+        }
 
         return res.status(200).json(result);
 

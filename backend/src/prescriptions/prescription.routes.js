@@ -28,8 +28,15 @@ router.get(
 router.patch(
   "/:id/review",
   authenticate,
-  authorize("pharmacist"),
+  authorize("pharmacist", "admin", "staff"),
   prescriptionController.reviewPrescription
+);
+
+router.post(
+  "/:id/verify",
+  authenticate,
+  authorize("pharmacist", "admin", "staff"),
+  prescriptionController.verifyPrescription
 );
 
 router.get(

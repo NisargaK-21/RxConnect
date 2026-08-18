@@ -198,6 +198,59 @@ const releaseExpiredHolds = async (req, res) => {
   }
 };
 
+const verifyPrescription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, decision, action, verified } = req.body;
+
+    let targetStatus = null;
+    const inputStr = String(status || decision || action || "").toLowerCase();
+
+    if (inputStr === "approved" || inputStr === "verified" || inputStr === "verify" || inputStr === "approve") {
+      targetStatus = "approved";
+    } else if (inputStr === "rejected" || inputStr === "reject") {
+      targetStatus = "rejected";
+    } else if (typeof verified === "boolean") {
+      targetStatus = verified ? "approved" : "rejected";
+    }
+
+    if (!targetStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "Status, decision, or action must be approved/verified or rejected",
+      });
+    }
+
+    const prescription = await prescriptionService.reviewPrescription(
+      id,
+      req.user.id,
+      targetStatus
+    );
+
+    if (!prescription) {
+      return res.status(404).json({
+        success: false,
+        message: "Prescription not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Prescription ${targetStatus} successfully`,
+      data: prescription,
+    });
+  } catch (error) {
+    console.error(error);
+    if (error.message && error.message.includes("not found")) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   uploadPrescription,
   getPrescriptionById,
@@ -206,4 +259,5 @@ module.exports = {
   updateStandingApproval,
   getVerificationLogsByOrder,
   releaseExpiredHolds,
+  verifyPrescription,
 };

@@ -44,7 +44,48 @@ const getMedicineById = async (id, branchId) => {
   return result.rows[0];
 };
 
+const getMedicineSubstitutions = async (medicineId, branchId = null) => {
+  try {
+    const params = [medicineId];
+    let query = `
+      SELECT
+        m.id,
+        m.name,
+        m.description,
+        m.price,
+        m.requires_prescription
+    `;
+
+    if (branchId) {
+      params.push(branchId);
+      query += `,
+        COALESCE(bs.quantity - bs.reserved_quantity, 0) AS available_quantity,
+        COALESCE(bs.quantity, 0) AS branch_stock
+      FROM medicine_substitutions ms
+      JOIN medicines m ON ms.substitute_medicine_id = m.id
+      LEFT JOIN branch_stock bs ON bs.medicine_id = m.id AND bs.branch_id = $2
+      WHERE ms.medicine_id = $1;
+      `;
+    } else {
+      query += `
+      FROM medicine_substitutions ms
+      JOIN medicines m ON ms.substitute_medicine_id = m.id
+      WHERE ms.medicine_id = $1;
+      `;
+    }
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  } catch (err) {
+    if (err.code === "42P01" || /relation "medicine_substitutions" does not exist/i.test(err.message)) {
+      return [];
+    }
+    throw err;
+  }
+};
+
 module.exports = {
   getCatalog,
   getMedicineById,
+  getMedicineSubstitutions,
 };
