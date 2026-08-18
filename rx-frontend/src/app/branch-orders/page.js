@@ -294,9 +294,15 @@ function BranchOrdersContent() {
                               (k) => String(k).toLowerCase() === String(order.status).toLowerCase()
                             ) || order.status;
                           const idx = STEPS.findIndex((s) => s.toLowerCase() === String(normalized || "").toLowerCase());
-                          const next = NEXT_STATUS[order.status] || NEXT_STATUS[normalized];
+                          const rawNext = NEXT_STATUS[order.status] || NEXT_STATUS[normalized];
                           const cancelled = ["Cancelled", "cancelled"].includes(order.status);
                           const isDelivered = idx === STEPS.length - 1 && !cancelled;
+                          
+                          // Pharmacists and Staff cannot advance Packed orders to Out for Delivery
+                          const isDeliveryAction = rawNext && ["out for delivery", "delivered"].includes(String(rawNext).toLowerCase());
+                          const canAdvance = rawNext && !cancelled && (user?.role === "admin" || user?.role === "delivery" || !isDeliveryAction);
+                          const isPackedAwaitingDriver = String(order.status).toLowerCase() === "packed" && user?.role !== "admin" && user?.role !== "delivery";
+
                           return (
                             <tr key={order.id} className="hover:bg-slate-50/70 transition-colors">
                               <td className="px-5 py-4">
@@ -322,7 +328,7 @@ function BranchOrdersContent() {
                                 {order.created_at ? new Date(order.created_at).toLocaleString() : "—"}
                               </td>
                               <td className="px-5 py-4 text-right whitespace-nowrap">
-                                <div className="inline-flex flex-col sm:flex-row gap-1.5 justify-end">
+                                <div className="inline-flex items-center flex-wrap gap-1.5 justify-end">
                                   <button
                                     type="button"
                                     onClick={() => openDetails(order)}
@@ -331,7 +337,7 @@ function BranchOrdersContent() {
                                     <span className="w-3.5 h-3.5" dangerouslySetInnerHTML={{ __html: ICONS.eye }} />
                                     Details
                                   </button>
-                                  {next && !cancelled ? (
+                                  {canAdvance ? (
                                     <button
                                       type="button"
                                       onClick={() => advanceStatus(order)}
@@ -343,8 +349,12 @@ function BranchOrdersContent() {
                                       ) : (
                                         <span className="w-3.5 h-3.5" dangerouslySetInnerHTML={{ __html: ICONS.arrowRight }} />
                                       )}
-                                      {String(next).split(" ").map((w) => w.charAt(0)).join("")}
+                                      Mark {rawNext}
                                     </button>
+                                  ) : isPackedAwaitingDriver ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200">
+                                      🛵 Ready for Driver
+                                    </span>
                                   ) : null}
                                   {!isDelivered && !cancelled ? (
                                     <button

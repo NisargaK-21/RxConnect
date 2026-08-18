@@ -50,15 +50,16 @@ const getLowStockPerBranch = async () => {
       bs.quantity,
       bs.low_stock_threshold,
       lsa.id AS alert_id,
-      lsa.acknowledged,
-      lsa.created_at
-    FROM low_stock_alerts lsa
-    JOIN branch_stock bs
-      ON lsa.branch_stock_id = bs.id
+      COALESCE(lsa.acknowledged, false) AS acknowledged,
+      COALESCE(lsa.created_at, NOW()) AS created_at
+    FROM branch_stock bs
     JOIN branches b
       ON bs.branch_id = b.id
     JOIN medicines m
       ON bs.medicine_id = m.id
+    LEFT JOIN low_stock_alerts lsa
+      ON lsa.branch_stock_id = bs.id AND lsa.acknowledged = false
+    WHERE bs.quantity <= bs.low_stock_threshold OR lsa.id IS NOT NULL
     ORDER BY b.name, m.name;
   `);
 

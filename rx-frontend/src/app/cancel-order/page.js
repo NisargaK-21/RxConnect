@@ -1,137 +1,134 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import AppShell from "@/components/AppShell";
+import RequireAuth from "@/components/RequireAuth";
+import { api } from "@/lib/api";
+import { getUser } from "@/utils/auth";
+import { useToast } from "@/components/Toast";
 
 export default function CancelOrderPage() {
+  return (
+    <RequireAuth>
+      <CancelOrderContent />
+    </RequireAuth>
+  );
+}
+
+function CancelOrderContent() {
+  const user = getUser();
+  const { addToast } = useToast();
   const [orderId, setOrderId] = useState("");
   const [customerId, setCustomerId] = useState("");
-  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
 
-  const handleCancel = async () => {
+  useEffect(() => {
+    if (user?.id) {
+      setCustomerId(String(user.id));
+    }
+  }, [user]);
+
+  const handleCancel = async (e) => {
+    e.preventDefault();
     if (!orderId || !customerId) {
-      setMessage("Please enter both Order ID and Customer ID.");
+      addToast("Please enter both Order ID and Customer ID.", "warning");
       return;
     }
 
     setLoading(true);
-    setMessage("");
+    setMessage(null);
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/orders/${orderId}/cancel`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            customerId: Number(customerId),
-          }),
-        }
-      );
+      const response = await api.patch(`/orders/${orderId}/cancel`, {
+        customerId: Number(customerId),
+      });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setMessage("✅ " + data.message);
+      const data = response.data;
+      if (data.success) {
+        addToast(data.message || "Order cancelled successfully!", "success");
+        setMessage({ type: "success", text: data.message || "Order cancelled successfully." });
+        setOrderId("");
       } else {
-        setMessage("❌ " + data.message);
+        addToast(data.message || "Could not cancel order.", "error");
+        setMessage({ type: "error", text: data.message || "Could not cancel order." });
       }
     } catch (error) {
-      setMessage("❌ Unable to connect to backend.");
+      const errMsg = error.response?.data?.message || "Failed to cancel order. Please verify details.";
+      addToast(errMsg, "error");
+      setMessage({ type: "error", text: errMsg });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#f4f6f8",
-      }}
-    >
-      <div
-        style={{
-          width: "400px",
-          background: "#fff",
-          padding: "30px",
-          borderRadius: "12px",
-          boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h1 style={{ textAlign: "center", marginBottom: "25px" }}>
-          RxConnect
-        </h1>
+    <AppShell>
+      <div className="max-w-xl mx-auto py-8">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8 animate-fade-in-up">
+          <div className="text-center mb-8">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 mb-3 border border-rose-100 shadow-inner">
+              🚫
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Cancel Order</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Enter your Order ID and Customer ID to process cancellation.
+            </p>
+          </div>
 
-        <h3 style={{ textAlign: "center", marginBottom: "20px" }}>
-          Cancel Customer Order
-        </h3>
+          {message && (
+            <div
+              className={`p-4 rounded-xl mb-6 text-sm font-medium border flex items-center gap-2 ${
+                message.type === "success"
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : "bg-rose-50 text-rose-800 border-rose-200"
+              }`}
+            >
+              <span>{message.type === "success" ? "✓" : "⚠️"}</span>
+              <span>{message.text}</span>
+            </div>
+          )}
 
-        <label>Order ID</label>
+          <form onSubmit={handleCancel} className="space-y-5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                Order ID
+              </label>
+              <input
+                type="number"
+                value={orderId}
+                onChange={(e) => setOrderId(e.target.value)}
+                placeholder="e.g. 102"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition"
+              />
+            </div>
 
-        <input
-          type="number"
-          value={orderId}
-          onChange={(e) => setOrderId(e.target.value)}
-          placeholder="Enter Order ID"
-          style={{
-            width: "100%",
-            padding: "10px",
-            marginTop: "5px",
-            marginBottom: "15px",
-          }}
-        />
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                Customer ID
+              </label>
+              <input
+                type="number"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                placeholder="e.g. 1"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition"
+              />
+            </div>
 
-        <label>Customer ID</label>
-
-        <input
-          type="number"
-          value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
-          placeholder="Enter Customer ID"
-          style={{
-            width: "100%",
-            padding: "10px",
-            marginTop: "5px",
-            marginBottom: "20px",
-          }}
-        />
-
-        <button
-          onClick={handleCancel}
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: "12px",
-            background: "#d32f2f",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "16px",
-          }}
-        >
-          {loading ? "Cancelling..." : "Cancel Order"}
-        </button>
-
-        {message && (
-          <p
-            style={{
-              marginTop: "20px",
-              textAlign: "center",
-              fontWeight: "bold",
-            }}
-          >
-            {message}
-          </p>
-        )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 text-white font-semibold text-sm shadow-lg shadow-rose-600/25 hover:from-rose-700 hover:to-red-700 disabled:opacity-60 transition"
+            >
+              {loading ? "Processing Cancellation..." : "Cancel Order"}
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
