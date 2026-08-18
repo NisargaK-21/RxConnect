@@ -13,6 +13,7 @@ import { ICONS } from "@/lib/navigation";
 import { getUser } from "@/utils/auth";
 import { toast } from "@/components/Toast";
 import { useCart } from "@/context/CartContext";
+import SubstitutionDrawer from "@/components/SubstitutionDrawer";
 
 export default function OrdersPage() {
   return (
@@ -28,7 +29,7 @@ function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const user = getUser();
-  const { cart, clearCart } = useCart();
+  const { cart, clearCart, replaceItemWithSubstitute } = useCart();
 
   const customerRoles = ["customer", "delivery"];
   const isCustomer = customerRoles.includes(user?.role);
@@ -46,6 +47,7 @@ function OrdersContent() {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState([]);
   const [suggestion, setSuggestion] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [substitutionPending, setSubstitutionPending] = useState(null);
   const [pendingPayload, setPendingPayload] = useState(null);
 
@@ -278,6 +280,7 @@ function OrdersContent() {
           suggestionOptions,
         };
         setSuggestion(suggestionData);
+        setIsDrawerOpen(true);
         setSubstitutionPending({
           payload: {
             customerId: Number(customerId),
@@ -291,7 +294,7 @@ function OrdersContent() {
           branchId: Number(branchId),
           items: items.map(({ medicineId, quantity }) => ({ medicineId, quantity })),
         });
-        toast(data.message || "Stock unavailable at selected branch", { variant: "warning" });
+        toast(data.message || "Stock unavailable at selected branch. Please choose a substitution.", { variant: "warning" });
       } else {
         toast(data.message || "Failed to place order", { variant: "error" });
       }
@@ -314,6 +317,7 @@ function OrdersContent() {
       });
       toast("Pharmacist approval requested", { variant: "info" });
       setSuggestion(null);
+      setIsDrawerOpen(false);
       setSubstitutionPending(null);
       setPendingPayload(null);
     } catch (err) {
@@ -321,6 +325,73 @@ function OrdersContent() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleSelectBranch(targetBranchId, origMedId) {
+    const bId = Number(targetBranchId);
+    if (!Number.isNaN(bId)) {
+      setBranchId(String(bId));
+      setIsDrawerOpen(false);
+      toast(`Switched to Branch #${bId}. Submitting order...`, { variant: "info" });
+      placeOrder(bId);
+    }
+  }
+
+  function handleSelectSubstitute(origBranchId, subMedicine) {
+    if (!subMedicine) return;
+    const origMedId = suggestion?.originalMedicineId;
+    if (origMedId) {
+      replaceItemWithSubstitute(origMedId, subMedicine);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.medicineId === origMedId
+            ? {
+                ...it,
+                medicineId: subMedicine.id,
+                name: subMedicine.name,
+                unit_price: Number(subMedicine.price || it.unit_price),
+              }
+            : it
+        )
+      );
+    }
+    setIsDrawerOpen(false);
+    toast(`Swapped with substitute medicine (${subMedicine.name}). Ready to place order.`, { variant: "success" });
+  }
+
+  function handleSelectOtherBranchSubstitute(altBranchId, subMedicine) {
+    if (!subMedicine || !altBranchId) return;
+    const origMedId = suggestion?.originalMedicineId;
+    setBranchId(String(altBranchId));
+    if (origMedId) {
+      replaceItemWithSubstitute(origMedId, subMedicine);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.medicineId === origMedId
+            ? {
+                ...it,
+                medicineId: subMedicine.id,
+                name: subMedicine.name,
+                unit_price: Number(subMedicine.price || it.unit_price),
+              }
+            : it
+        )
+      );
+    }
+    setIsDrawerOpen(false);
+    toast(`Selected ${subMedicine.name} at Branch #${altBranchId}.`, { variant: "success" });
+  }
+
+  function handleDrawerReject() {
+    const origMedId = suggestion?.originalMedicineId;
+    if (origMedId) {
+      setItems((prev) => prev.filter((it) => it.medicineId !== origMedId));
+    }
+    setSuggestion(null);
+    setIsDrawerOpen(false);
+    setSubstitutionPending(null);
+    setPendingPayload(null);
+    toast("Out-of-stock item removed from order.", { variant: "info" });
   }
 
   function applySubstituteMedicine() {
@@ -342,6 +413,7 @@ function OrdersContent() {
 
     toast("Substitute medicine applied to the current order.", { variant: "success" });
     setSuggestion(null);
+    setIsDrawerOpen(false);
     setPendingPayload(null);
     setSubstitutionPending(null);
   }
@@ -766,6 +838,19 @@ function OrdersContent() {
             </div>
           </aside>
         </div>
+
+        {/* Responsive Out-of-Stock Substitution Drawer */}
+        <SubstitutionDrawer
+          isOpen={isDrawerOpen && Boolean(suggestion)}
+          onClose={() => setIsDrawerOpen(false)}
+          substitution={suggestion}
+          onSelectBranch={handleSelectBranch}
+          onSelectSubstitute={handleSelectSubstitute}
+          onSelectOtherBranchSubstitute={handleSelectOtherBranchSubstitute}
+          onRequestApproval={requestSubstitution}
+          onReject={handleDrawerReject}
+          loading={submitting}
+        />
       </div>
     </AppShell>
   );
