@@ -14,6 +14,7 @@ import { getUser } from "@/utils/auth";
 import { toast } from "@/components/Toast";
 import { useCart } from "@/context/CartContext";
 import { uploadPrescription } from "@/services/prescription.service";
+import SubstitutionDrawer from "@/components/SubstitutionDrawer";
 
 export default function CustomerPage() {
   return (
@@ -26,8 +27,16 @@ export default function CustomerPage() {
 function CustomerInner() {
   const router = useRouter();
   const user = getUser();
-  const { cart, addToCart, removeFromCart, updateQuantity, clearCart, cartCount, cartTotal } =
-    useCart();
+  const {
+    cart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    replaceItemWithSubstitute,
+    clearCart,
+    cartCount,
+    cartTotal,
+  } = useCart();
 
   const [medicines, setMedicines] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -39,6 +48,8 @@ function CustomerInner() {
   const [placedOrder, setPlacedOrder] = useState(null);
   const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [uploadingRx, setUploadingRx] = useState(false);
+  const [substitution, setSubstitution] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,8 +99,9 @@ function CustomerInner() {
     return cart.some((item) => item.requires_prescription);
   }, [cart]);
 
-  async function handleCheckout() {
-    if (!selectedBranch) {
+  async function handleCheckout(overrideBranchId = null) {
+    const activeBranch = overrideBranchId != null ? String(overrideBranchId) : selectedBranch;
+    if (!activeBranch) {
       toast("Please select a pickup / fulfillment branch", { variant: "warning" });
       return;
     }
@@ -102,7 +114,7 @@ function CustomerInner() {
     try {
       const payload = {
         customerId: Number(user?.id || 1),
-        branchId: Number(selectedBranch),
+        branchId: Number(activeBranch),
         items: cart.map((item) => ({
           medicineId: Number(item.medicineId),
           quantity: item.quantity,
@@ -113,6 +125,8 @@ function CustomerInner() {
       const orderData = res.data || {};
       setPlacedOrder(orderData);
       clearCart();
+      setSubstitution(null);
+      setIsDrawerOpen(false);
 
       const rxItem = orderData.items?.find((it) => it.requiresPrescription);
       if (rxItem) {
@@ -125,12 +139,102 @@ function CustomerInner() {
         setTimeout(() => router.push("/order-tracking"), 1200);
       }
     } catch (err) {
-      toast(err?.response?.data?.message || "Checkout failed. Please try again.", {
-        variant: "error",
-      });
+      const status = err?.response?.status;
+      const data = err?.response?.data || {};
+      if (status === 409 && data.substitutionRequired) {
+        const rawSuggestion = data.suggestion || {
+          branchSuggestion: data.branchSuggestion,
+          medicineSuggestion: data.medicineSuggestion,
+          medicineOtherBranchSuggestion: data.medicineOtherBranchSuggestion,
+          originalBranchId: data.originalBranchId,
+          originalMedicineId: data.originalMedicineId,
+          branchId: data.branchId,
+          branchName: data.branchName,
+          suggestionOptions: data.suggestionOptions || [],
+        };
+        const suggestionOptions = rawSuggestion.suggestionOptions || [];
+
+        const opt_same_branch = suggestionOptions.find((s) => s.type === "same_medicine_other_branch");
+        const opt_sub_same = suggestionOptions.find((s) => s.type === "substitute_same_branch");
+        const opt_sub_other = suggestionOptions.find((s) => s.type === "substitute_other_branch");
+
+        const branchSuggestionFromPayload =
+          rawSuggestion.branchSuggestion ||
+          opt_same_branch ||
+          (rawSuggestion.branchId
+            ? {
+                branchId: rawSuggestion.branchId,
+                branchName: rawSuggestion.branchName,
+              }
+            : null);
+
+        const suggestionData = {
+          ...rawSuggestion,
+          branchSuggestion: branchSuggestionFromPayload,
+          medicineSuggestion: rawSuggestion.medicineSuggestion || opt_sub_same,
+          medicineOtherBranchSuggestion: rawSuggestion.medicineOtherBranchSuggestion || opt_sub_other,
+          branchId:
+            rawSuggestion.branchId || branchSuggestionFromPayload?.branchId || opt_sub_other?.branchId,
+          branchName:
+            rawSuggestion.branchName || branchSuggestionFromPayload?.branchName || opt_sub_other?.branchName,
+          suggestionOptions,
+          originalMedicineName:
+            cart.find((c) => Number(c.medicineId) === Number(rawSuggestion.originalMedicineId))?.name ||
+            `Medicine #${rawSuggestion.originalMedicineId}`,
+        };
+
+        setSubstitution(suggestionData);
+        setIsDrawerOpen(true);
+        toast(data.message || "Stock unavailable. Choose a substitution.", { variant: "warning" });
+      } else {
+        toast(err?.response?.data?.message || "Checkout failed. Please try again.", {
+          variant: "error",
+        });
+      }
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleSelectBranch(targetBranchId, origMedId) {
+    const bId = Number(targetBranchId);
+    if (!Number.isNaN(bId)) {
+      setSelectedBranch(String(bId));
+      setIsDrawerOpen(false);
+      toast(`Switched branch to #${bId}. Processing checkout...`, { variant: "info" });
+      handleCheckout(bId);
+    }
+  }
+
+  function handleSelectSubstitute(origBranchId, subMedicine) {
+    if (!subMedicine) return;
+    const origMedId = substitution?.originalMedicineId;
+    if (origMedId) {
+      replaceItemWithSubstitute(origMedId, subMedicine);
+    }
+    setIsDrawerOpen(false);
+    toast(`Cart updated with substitute medicine (${subMedicine.name}).`, { variant: "success" });
+  }
+
+  function handleSelectOtherBranchSubstitute(altBranchId, subMedicine) {
+    if (!subMedicine || !altBranchId) return;
+    const origMedId = substitution?.originalMedicineId;
+    setSelectedBranch(String(altBranchId));
+    if (origMedId) {
+      replaceItemWithSubstitute(origMedId, subMedicine);
+    }
+    setIsDrawerOpen(false);
+    toast(`Selected ${subMedicine.name} at Branch #${altBranchId}.`, { variant: "success" });
+  }
+
+  function handleDrawerReject() {
+    const origMedId = substitution?.originalMedicineId;
+    if (origMedId) {
+      removeFromCart(origMedId);
+    }
+    setSubstitution(null);
+    setIsDrawerOpen(false);
+    toast("Out-of-stock item removed from cart.", { variant: "info" });
   }
 
   async function handleUploadPrescription() {
@@ -535,6 +639,18 @@ function CustomerInner() {
             </div>
           </div>
         </div>
+
+        {/* Out-of-Stock Substitution Drawer */}
+        <SubstitutionDrawer
+          isOpen={isDrawerOpen && Boolean(substitution)}
+          onClose={() => setIsDrawerOpen(false)}
+          substitution={substitution}
+          onSelectBranch={handleSelectBranch}
+          onSelectSubstitute={handleSelectSubstitute}
+          onSelectOtherBranchSubstitute={handleSelectOtherBranchSubstitute}
+          onReject={handleDrawerReject}
+          loading={submitting}
+        />
       </div>
     </AppShell>
   );

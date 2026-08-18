@@ -13,7 +13,14 @@ import { ICONS } from "@/lib/navigation";
 import { getUser } from "@/utils/auth";
 import { toast } from "@/components/Toast";
 
-const STEPS = ["Placed", "Verified", "Packed", "Out for Delivery", "Delivered"];
+const LIFECYCLE_STEPS = [
+  { key: "placed", label: "Placed" },
+  { key: "pending pharmacist review", label: "Pharmacist Review" },
+  { key: "verified", label: "Verified" },
+  { key: "packed", label: "Packed" },
+  { key: "out for delivery", label: "Out for Delivery" },
+  { key: "delivered", label: "Delivered" },
+];
 
 export default function OrderTrackingPage() {
   return (
@@ -81,34 +88,36 @@ function OrderTrackingContent() {
       const orderData = res.data?.order || res.data?.data || order;
       setSelectedOrder({ ...orderData, items });
     } catch (err) {
-      toast("Failed to load details", { variant: "error" });
+      toast("Failed to load order details", { variant: "error" });
     }
   }
 
   async function handleCancel(order) {
     try {
       await api.patch(`/orders/${order.id}/cancel`, { customerId });
-      toast("Order cancelled", { variant: "success" });
+      toast(`Order #${order.id} cancelled`, { variant: "success" });
       setConfirmCancel(null);
       if (selectedOrder && selectedOrder.id === order.id) setSelectedOrder(null);
       fetchOrders(false);
     } catch (err) {
-      toast(err?.response?.data?.message || "Failed to cancel", { variant: "error" });
+      toast(err?.response?.data?.message || "Failed to cancel order", { variant: "error" });
     }
   }
 
   const totals = useMemo(() => {
     return {
       total: orders.length,
+      underReview: orders.filter((o) =>
+        ["Pending Pharmacist Review", "pending pharmacist review", "Placed", "placed"].includes(
+          o.status
+        )
+      ).length,
       inTransit: orders.filter((o) =>
-        ["Verified", "verified", "Packed", "packed", "Out for Delivery", "out for delivery"].includes(o.status)
+        ["Verified", "verified", "Packed", "packed", "Out for Delivery", "out for delivery"].includes(
+          o.status
+        )
       ).length,
-      delivered: orders.filter((o) =>
-        ["Delivered", "delivered"].includes(o.status)
-      ).length,
-      open: orders.filter((o) =>
-        ["Placed", "placed"].includes(o.status)
-      ).length,
+      delivered: orders.filter((o) => ["Delivered", "delivered"].includes(o.status)).length,
     };
   }, [orders]);
 
@@ -116,7 +125,9 @@ function OrderTrackingContent() {
   const filtered = useMemo(() => {
     let base = [...orders];
     if (statusFilter !== "all") {
-      base = base.filter((o) => String(o.status || "").toLowerCase() === statusFilter.toLowerCase());
+      base = base.filter(
+        (o) => String(o.status || "").toLowerCase() === statusFilter.toLowerCase()
+      );
     }
     if (q) {
       base = base.filter((o) => String(o.id).includes(q));
@@ -129,7 +140,7 @@ function OrderTrackingContent() {
   async function handleCancelItem(orderId, itemId) {
     try {
       await api.delete(`/orders/${orderId}/items/${itemId}`, { data: { customerId } });
-      toast("Item cancelled", { variant: "success" });
+      toast("Item cancelled from order", { variant: "success" });
       const res = await api.get(`/orders/${orderId}`);
       const items = res.data?.items || [];
       const orderData = res.data?.order || res.data?.data || selectedOrder;
@@ -144,164 +155,281 @@ function OrderTrackingContent() {
     }
   }
 
-  const canCancelItems = selectedOrder && ["Placed", "placed", "Pending Pharmacist Review", "pending pharmacist review", "Verified", "verified"].includes(selectedOrder.status);
+  const canCancelItems =
+    selectedOrder &&
+    [
+      "Placed",
+      "placed",
+      "Pending Pharmacist Review",
+      "pending pharmacist review",
+      "Verified",
+      "verified",
+    ].includes(selectedOrder.status);
 
   return (
     <AppShell activeRoute="/order-tracking">
       <div className="animate-fade-in-up">
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Order Tracking</h1>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-xs font-bold text-teal-700 mb-2">
+              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+              Live Order Lifecycle Tracking
+            </div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+              Order Tracking
+            </h1>
             <p className="mt-1.5 text-sm text-slate-500">
-              Track your orders in real-time and view details anytime.
+              Track prescription verification, pharmacy packing, dispatch, and live delivery status.
             </p>
           </div>
           <div className="flex items-center gap-2 self-start md:self-end">
             <button
               type="button"
               onClick={() => fetchOrders(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 btn-press transition focus-ring"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 btn-press transition focus-ring"
             >
-              <span className="w-4 h-4" dangerouslySetInnerHTML={{ __html: ICONS.refresh }} />
+              <span
+                className="w-4 h-4"
+                dangerouslySetInnerHTML={{ __html: ICONS.refresh }}
+              />
               Refresh
             </button>
             <button
               type="button"
               onClick={() => router.push("/orders")}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl shadow-lg shadow-teal-500/25 hover:from-teal-600 hover:to-emerald-600 btn-press transition focus-ring"
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl shadow-lg shadow-teal-500/25 hover:from-teal-600 hover:to-emerald-600 btn-press transition focus-ring"
             >
-              <span className="w-4 h-4" dangerouslySetInnerHTML={{ __html: ICONS.plus }} />
-              New order
+              <span
+                className="w-4 h-4"
+                dangerouslySetInnerHTML={{ __html: ICONS.plus }}
+              />
+              New Order
             </button>
           </div>
         </div>
 
+        {/* Metric Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-7">
-          <StatCard title="Total orders" value={loading ? null : totals.total} icon={ICONS.orders} accent="indigo" loading={loading} />
-          <StatCard title="To verify" value={loading ? null : totals.open} icon={ICONS.prescriptions} accent="amber" loading={loading} />
-          <StatCard title="In transit" value={loading ? null : totals.inTransit} icon={ICONS.delivery} accent="blue" loading={loading} />
-          <StatCard title="Delivered" value={loading ? null : totals.delivered} icon={ICONS.tracking} accent="emerald" loading={loading} />
+          <StatCard
+            title="Total Orders"
+            value={loading ? null : totals.total}
+            icon={ICONS.orders}
+            accent="indigo"
+            loading={loading}
+          />
+          <StatCard
+            title="Processing / Review"
+            value={loading ? null : totals.underReview}
+            icon={ICONS.prescriptions}
+            accent="amber"
+            loading={loading}
+          />
+          <StatCard
+            title="In Transit / Packed"
+            value={loading ? null : totals.inTransit}
+            icon={ICONS.delivery}
+            accent="blue"
+            loading={loading}
+          />
+          <StatCard
+            title="Delivered"
+            value={loading ? null : totals.delivered}
+            icon={ICONS.check}
+            accent="emerald"
+            loading={loading}
+          />
         </div>
 
+        {/* Filter Bar */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 md:p-5 mb-6 card-hover">
           <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
             <div className="relative flex-1">
-              <span className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" dangerouslySetInnerHTML={{ __html: ICONS.search }} />
+              <span
+                className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                dangerouslySetInnerHTML={{ __html: ICONS.search }}
+              />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by order ID..."
+                placeholder="Search orders by ID..."
                 className="input-field w-full pl-10"
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-field !py-2.5 w-auto">
-                <option value="all">All status</option>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="input-field !py-2.5 w-auto text-xs font-semibold"
+              >
+                <option value="all">All Statuses</option>
                 <option value="placed">Placed</option>
+                <option value="pending pharmacist review">Pending Pharmacist Review</option>
                 <option value="verified">Verified</option>
                 <option value="packed">Packed</option>
                 <option value="out for delivery">Out for Delivery</option>
                 <option value="delivered">Delivered</option>
+                <option value="rejected">Rejected</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
           </div>
         </div>
 
+        {/* Orders List */}
         {loading ? (
           <div className="grid sm:grid-cols-2 gap-5 stagger">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="animate-fade-in-up" style={{ animationDelay: `${i * 60}ms` }}>
-                <SkeletonCard lines={3} />
+              <div
+                key={i}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <SkeletonCard lines={4} />
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm py-14 px-5">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm py-14 px-5">
             <EmptyState
               icon="orders"
-              title={orders.length === 0 ? "No orders yet" : "No matching orders"}
-              description={orders.length === 0 ? "Place your first order from our catalog." : "Try adjusting filters or search."}
+              title={orders.length === 0 ? "No orders placed yet" : "No matching orders found"}
+              description={
+                orders.length === 0
+                  ? "Explore our medicine catalog to place your first prescription order."
+                  : "Try clearing your search or status filters."
+              }
               variant="info"
-              ctaLabel={orders.length === 0 ? "Browse catalog" : undefined}
+              ctaLabel={orders.length === 0 ? "Browse Catalog" : undefined}
               ctaOnClick={orders.length === 0 ? () => router.push("/catalog") : undefined}
             />
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 gap-5 stagger">
             {filtered.map((order, i) => {
-              const normalized = order.status?.toString().toLowerCase();
-              let activeIndex = STEPS.findIndex((s) => s.toLowerCase() === normalized);
-              if (activeIndex < 0) activeIndex = 0;
-              const cancelled = normalized === "cancelled";
-              const delivered = normalized === "delivered";
+              const normalized = String(order.status || "").toLowerCase();
+              const isCancelled = normalized === "cancelled";
+              const isRejected = normalized === "rejected";
+              const isDelivered = normalized === "delivered";
+
+              // Find step index in standard lifecycle
+              let activeIndex = LIFECYCLE_STEPS.findIndex((s) => s.key === normalized);
+              if (activeIndex < 0) {
+                if (normalized.includes("review") || normalized.includes("pending")) activeIndex = 1;
+                else if (normalized.includes("pack")) activeIndex = 3;
+                else if (normalized.includes("deliver") || normalized.includes("out")) activeIndex = 4;
+                else activeIndex = 0;
+              }
+
               return (
                 <article
                   key={order.id}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm card-hover p-5 animate-fade-in-up"
-                  style={{ animationDelay: `${Math.min(i * 60, 300)}ms` }}
+                  className="bg-white rounded-3xl border border-slate-200 shadow-sm card-hover p-5 animate-fade-in-up flex flex-col justify-between"
+                  style={{ animationDelay: `${Math.min(i * 50, 250)}ms` }}
                 >
-                  <header className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
-                        delivered
-                          ? "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-emerald-500/20"
-                          : cancelled
-                            ? "bg-gradient-to-br from-rose-500 to-pink-500 text-white shadow-rose-500/20"
-                            : "bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-indigo-500/20"
-                      }`}>
-                        <span className="w-5 h-5" dangerouslySetInnerHTML={{ __html: ICONS.tracking }} />
-                      </div>
-                      <div>
-                        <div className="font-mono font-bold text-slate-900 text-lg">
-                          #{order.id}
+                  <div>
+                    <header className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-md shrink-0 text-white ${
+                            isDelivered
+                              ? "bg-gradient-to-br from-emerald-500 to-teal-500 shadow-emerald-500/20"
+                              : isRejected || isCancelled
+                              ? "bg-gradient-to-br from-rose-500 to-red-500 shadow-rose-500/20"
+                              : "bg-gradient-to-br from-indigo-500 to-violet-500 shadow-indigo-500/20"
+                          }`}
+                        >
+                          <span
+                            className="w-5 h-5"
+                            dangerouslySetInnerHTML={{ __html: ICONS.tracking }}
+                          />
                         </div>
-                        <div className="text-xs text-slate-500 mt-0.5">
-                          {branchName(order.branch_id)}
+                        <div className="min-w-0">
+                          <div className="font-mono font-bold text-slate-900 text-lg truncate">
+                            Order #{order.id}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5 truncate">
+                            {branchName(order.branch_id)}
+                          </div>
+                        </div>
+                      </div>
+                      <StatusBadge status={order.status} size="sm" />
+                    </header>
+
+                    {/* Timeline Lifecycle */}
+                    <div className="mb-4">
+                      <LifecycleTimeline
+                        active={activeIndex}
+                        cancelled={isCancelled}
+                        rejected={isRejected}
+                      />
+                    </div>
+
+                    {/* Rejection Notice Banner if applicable */}
+                    {isRejected && (
+                      <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 mb-4 text-xs text-rose-900 space-y-1">
+                        <div className="font-bold flex items-center gap-1.5">
+                          <span
+                            className="w-3.5 h-3.5 text-rose-600"
+                            dangerouslySetInnerHTML={{ __html: ICONS.close }}
+                          />
+                          Prescription Rejected by Pharmacist
+                        </div>
+                        <p className="text-[11px] text-rose-700">
+                          {order.rejection_reason ||
+                            order.reason ||
+                            "Clinical review failed due to prescription discrepancy. Reserved stock has been released."}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Order Metadata summary */}
+                    <div className="grid grid-cols-2 gap-2.5 text-xs mb-4">
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Placed On
+                        </div>
+                        <div className="mt-0.5 font-semibold text-slate-800">
+                          {order.created_at ? new Date(order.created_at).toLocaleDateString() : "—"}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Total Items
+                        </div>
+                        <div className="mt-0.5 font-bold text-slate-900 tabular-nums">
+                          {order.item_count ?? (Array.isArray(order.items) ? order.items.length : "—")} items
                         </div>
                       </div>
                     </div>
-                    <StatusBadge status={order.status} />
-                  </header>
-
-                  <div className="mb-4">
-                    <Timeline active={activeIndex} cancelled={cancelled} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Placed on</div>
-                      <div className="mt-1 text-slate-800 text-xs">
-                        {order.created_at ? new Date(order.created_at).toLocaleString() : "—"}
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total items</div>
-                      <div className="mt-1 text-slate-800">
-                        <span className="font-semibold tabular-nums">{order.item_count ?? "—"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => openDetail(order)}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 btn-press transition focus-ring"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 btn-press transition focus-ring"
                     >
-                      <span className="w-4 h-4" dangerouslySetInnerHTML={{ __html: ICONS.eye }} />
-                      View details
+                      <span
+                        className="w-3.5 h-3.5"
+                        dangerouslySetInnerHTML={{ __html: ICONS.eye }}
+                      />
+                      View Full Details
                     </button>
-                    {!delivered && !cancelled ? (
+
+                    {!isDelivered && !isCancelled && !isRejected && (
                       <button
                         type="button"
                         onClick={() => setConfirmCancel(order)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 btn-press transition focus-ring"
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 btn-press transition focus-ring border border-rose-100"
                       >
-                        <span className="w-4 h-4" dangerouslySetInnerHTML={{ __html: ICONS.trash }} />
+                        <span
+                          className="w-3.5 h-3.5"
+                          dangerouslySetInnerHTML={{ __html: ICONS.trash }}
+                        />
                         Cancel
                       </button>
-                    ) : null}
+                    )}
                   </div>
                 </article>
               );
@@ -309,51 +437,115 @@ function OrderTrackingContent() {
           </div>
         )}
 
+        {/* Order Details Modal */}
         {selectedOrder && (
-          <Modal title={`Order #${selectedOrder.id}`} onClose={() => setSelectedOrder(null)}>
+          <Modal
+            title={`Order #${selectedOrder.id} Details`}
+            onClose={() => setSelectedOrder(null)}
+          >
             <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <KV k="Status"><StatusBadge status={selectedOrder.status} size="sm" /></KV>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <KV k="Status">
+                  <StatusBadge status={selectedOrder.status} size="sm" />
+                </KV>
                 <KV k="Branch">
-                  <span className="text-slate-700 font-medium">
+                  <span className="text-slate-800 font-bold">
                     {branchName(selectedOrder.branch_id)}
                   </span>
                 </KV>
-                <KV k="Placed on">
-                  <span className="text-slate-700 text-xs">
-                    {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString() : "—"}
+                <KV k="Order Date">
+                  <span className="text-slate-700 font-medium">
+                    {selectedOrder.created_at
+                      ? new Date(selectedOrder.created_at).toLocaleDateString()
+                      : "—"}
                   </span>
                 </KV>
-                <KV k="Total">
-                  <span className="text-slate-800 font-semibold tabular-nums">
-                    ₹{(selectedOrder.items || []).reduce((sum, it) => sum + (it.quantity || 0) * Number(it.unit_price ?? it.price ?? 0), 0).toLocaleString()}
+                <KV k="Order Total">
+                  <span className="text-slate-900 font-bold tabular-nums">
+                    ₹
+                    {(selectedOrder.items || [])
+                      .reduce(
+                        (sum, it) =>
+                          sum + (it.quantity || 0) * Number(it.unit_price ?? it.price ?? 0),
+                        0
+                      )
+                      .toLocaleString()}
                   </span>
                 </KV>
               </div>
+
+              {/* Lifecycle Progress in Modal */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Order Status Progression
+                </div>
+                <LifecycleTimeline
+                  active={LIFECYCLE_STEPS.findIndex(
+                    (s) => s.key === String(selectedOrder.status || "").toLowerCase()
+                  )}
+                  cancelled={String(selectedOrder.status || "").toLowerCase() === "cancelled"}
+                  rejected={String(selectedOrder.status || "").toLowerCase() === "rejected"}
+                />
+              </div>
+
+              {/* Rejection Details if applicable */}
+              {String(selectedOrder.status || "").toLowerCase() === "rejected" && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span
+                      className="w-4 h-4 text-rose-600"
+                      dangerouslySetInnerHTML={{ __html: ICONS.close }}
+                    />
+                    Prescription Verification Rejected
+                  </div>
+                  <p className="text-slate-700">
+                    {selectedOrder.rejection_reason ||
+                      selectedOrder.reason ||
+                      "The pharmacist rejected the prescription for this order. Please upload a valid doctor prescription or consult support."}
+                  </p>
+                </div>
+              )}
+
+              {/* Items List */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Items</div>
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Medicines ({selectedOrder.items?.length || 0})
+                  </div>
                   {canCancelItems && (selectedOrder.items || []).length > 1 && (
-                    <span className="text-[11px] text-slate-400 font-medium">Individual item cancellation active</span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Individual item cancellation available
+                    </span>
                   )}
                 </div>
+
                 {selectedOrder.items?.length ? (
-                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 overflow-hidden">
+                  <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 overflow-hidden">
                     {selectedOrder.items.map((it) => (
-                      <div key={it.id} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-slate-50 transition-colors">
+                      <div
+                        key={it.id}
+                        className="flex items-center justify-between px-4 py-3 bg-white hover:bg-slate-50 transition-colors text-xs"
+                      >
                         <div>
-                          <div className="font-medium text-slate-900">{it.medicine_name || `Medicine #${it.medicine_id}`}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">Qty {it.quantity} × ₹{it.unit_price ?? it.price}</div>
+                          <div className="font-bold text-slate-900">
+                            {it.medicine_name || `Medicine #${it.medicine_id}`}
+                          </div>
+                          <div className="text-slate-400 text-[11px] mt-0.5">
+                            Qty {it.quantity} × ₹{it.unit_price ?? it.price}
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          <div className="font-semibold text-slate-900 tabular-nums">
-                            ₹{((it.quantity || 0) * Number(it.unit_price ?? it.price ?? 0)).toLocaleString()}
+                          <div className="font-bold text-slate-900 tabular-nums text-sm">
+                            ₹
+                            {(
+                              (it.quantity || 0) * Number(it.unit_price ?? it.price ?? 0)
+                            ).toLocaleString()}
                           </div>
                           {canCancelItems && (
                             <button
                               type="button"
                               onClick={() => handleCancelItem(selectedOrder.id, it.id)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors"
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors border border-rose-100"
                               title="Cancel this item"
                             >
                               Cancel Item
@@ -364,14 +556,15 @@ function OrderTrackingContent() {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState icon="orders" title="No items" size="sm" />
+                  <EmptyState icon="orders" title="No items in order" size="sm" />
                 )}
               </div>
-              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setSelectedOrder(null)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 btn-press transition focus-ring"
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 btn-press transition focus-ring"
                 >
                   Close
                 </button>
@@ -380,25 +573,26 @@ function OrderTrackingContent() {
           </Modal>
         )}
 
+        {/* Cancel Confirmation Modal */}
         {confirmCancel && (
           <Modal title="Cancel this order?" onClose={() => setConfirmCancel(null)}>
-            <p className="text-sm text-slate-600">
-              Cancelling order #{confirmCancel.id} stops further processing and cannot be undone.
+            <p className="text-xs text-slate-600">
+              Cancelling order #{confirmCancel.id} will halt fulfillment and release any reserved medicines back to pharmacy inventory.
             </p>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-5">
+            <div className="flex items-center justify-end gap-2 pt-5 border-t border-slate-100 mt-5">
               <button
                 type="button"
                 onClick={() => setConfirmCancel(null)}
-                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 btn-press transition focus-ring"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 btn-press transition focus-ring"
               >
-                Keep order
+                Keep Order
               </button>
               <button
                 type="button"
                 onClick={() => handleCancel(confirmCancel)}
-                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-pink-500 shadow-lg shadow-rose-500/25 hover:from-rose-600 hover:to-pink-600 btn-press transition focus-ring"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-500 to-pink-500 shadow-md shadow-rose-500/25 hover:from-rose-600 hover:to-pink-600 btn-press transition focus-ring"
               >
-                Cancel order
+                Confirm Cancellation
               </button>
             </div>
           </Modal>
@@ -408,36 +602,47 @@ function OrderTrackingContent() {
   );
 }
 
-function Timeline({ active, cancelled }) {
-  const safeActive = cancelled ? -1 : Math.max(0, Math.min(active, STEPS.length - 1));
+function LifecycleTimeline({ active, cancelled, rejected }) {
+  const isFailed = cancelled || rejected;
+  const safeActive = isFailed ? -1 : Math.max(0, Math.min(active, LIFECYCLE_STEPS.length - 1));
+
   return (
     <ol className="flex items-start gap-1 mt-2">
-      {STEPS.map((label, i) => {
-        const done = !cancelled && i < safeActive;
-        const current = !cancelled && i === safeActive;
+      {LIFECYCLE_STEPS.map((step, i) => {
+        const done = !isFailed && i < safeActive;
+        const current = !isFailed && i === safeActive;
         return (
-          <li key={label} className="flex flex-col items-center flex-1 min-w-0 text-center">
+          <li key={step.key} className="flex flex-col items-center flex-1 min-w-0 text-center">
             <div
-              className={`w-6 h-6 rounded-full flex items-center justify-center border transition-colors ${
-                cancelled
+              className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
+                isFailed
                   ? "bg-white border-slate-200 text-slate-400"
                   : done
-                    ? "bg-gradient-to-br from-teal-500 to-emerald-500 border-transparent text-white"
-                    : current
-                      ? "bg-white border-teal-500 text-teal-600 ring-4 ring-teal-500/10"
-                      : "bg-white border-slate-200 text-slate-400"
+                  ? "bg-gradient-to-br from-teal-500 to-emerald-500 border-transparent text-white shadow-xs"
+                  : current
+                  ? "bg-white border-teal-500 text-teal-600 ring-4 ring-teal-500/10 font-bold"
+                  : "bg-white border-slate-200 text-slate-400"
               }`}
             >
               {done ? (
-                <span className="w-3.5 h-3.5" dangerouslySetInnerHTML={{ __html: ICONS.check }} />
+                <span
+                  className="w-3.5 h-3.5"
+                  dangerouslySetInnerHTML={{ __html: ICONS.check }}
+                />
               ) : (
                 <span className="text-[10px] font-bold">{i + 1}</span>
               )}
             </div>
-            <div className={`mt-1.5 text-[10px] font-semibold leading-tight ${
-              cancelled ? "text-slate-400" : i <= safeActive ? "text-slate-700" : "text-slate-400"
-            }`}>
-              {label}
+            <div
+              className={`mt-1.5 text-[9px] font-bold leading-tight ${
+                isFailed
+                  ? "text-slate-400"
+                  : i <= safeActive
+                  ? "text-slate-800"
+                  : "text-slate-400"
+              }`}
+            >
+              {step.label}
             </div>
           </li>
         );
@@ -448,8 +653,8 @@ function Timeline({ active, cancelled }) {
 
 function KV({ k, children }) {
   return (
-    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{k}</div>
+    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{k}</div>
       <div className="mt-1">{children}</div>
     </div>
   );
@@ -458,16 +663,22 @@ function KV({ k, children }) {
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+        onClick={onClose}
+      />
       <div className="relative w-full max-w-2xl modal-content animate-modal-in bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-h-[85vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-5 sticky top-0 bg-white pb-3 -my-1">
+        <div className="flex items-center justify-between mb-5 sticky top-0 bg-white pb-3 -my-1 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 btn-press transition focus-ring"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 btn-press transition focus-ring"
           >
-            <span className="w-4 h-4" dangerouslySetInnerHTML={{ __html: ICONS.close }} />
+            <span
+              className="w-4 h-4"
+              dangerouslySetInnerHTML={{ __html: ICONS.close }}
+            />
           </button>
         </div>
         {children}
