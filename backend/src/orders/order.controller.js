@@ -100,6 +100,14 @@ const updateStatus = async (req, res) => {
         const { status } = req.body;
         const userRole = req.user?.role || null;
 
+        const normalizedStatus = String(status || "").toLowerCase();
+        if ((normalizedStatus === "out for delivery" || normalizedStatus === "delivered") && userRole !== "delivery" && userRole !== "admin") {
+            return res.status(403).json({
+                success: false,
+                message: "Only authorized delivery personnel can mark orders as Out for Delivery or Delivered.",
+            });
+        }
+
         const result = await updateOrderStatus(id, status, userRole);
 
         return res.status(200).json(result);

@@ -51,6 +51,23 @@ export function useToasts() {
   return items;
 }
 
+export function useToast() {
+  return {
+    addToast: (message, variant = "default", options = {}) =>
+      toast(message, { ...options, variant }),
+    toast,
+  };
+}
+
+export function ToastProvider({ children }) {
+  return (
+    <>
+      {children}
+      <ToastContainer />
+    </>
+  );
+}
+
 export default function ToastContainer() {
   const items = useToasts();
 

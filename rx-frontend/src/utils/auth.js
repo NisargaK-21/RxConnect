@@ -1,4 +1,6 @@
 export function saveAuth(data, user) {
+  if (typeof window === "undefined") return;
+
   if (typeof data === "object" && data !== null && user === undefined) {
     localStorage.setItem("token", data.token || "");
     localStorage.setItem("user", JSON.stringify(data.user || {}));
@@ -10,11 +12,13 @@ export function saveAuth(data, user) {
 }
 
 export function getToken() {
+  if (typeof window === "undefined") return null;
   const token = localStorage.getItem("token");
   return token === "undefined" || token === "null" ? null : token;
 }
 
 export function getUser() {
+  if (typeof window === "undefined") return null;
   const user = localStorage.getItem("user");
 
   if (!user || user === "undefined" || user === "null") {
@@ -31,6 +35,7 @@ export function getUser() {
 }
 
 export function logout() {
+  if (typeof window === "undefined") return;
   localStorage.removeItem("token");
   localStorage.removeItem("user");
-}
+}

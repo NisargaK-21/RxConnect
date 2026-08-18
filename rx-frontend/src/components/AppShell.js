@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { getUser, logout } from "@/utils/auth";
 import { getNavForRole } from "@/lib/navigation";
 import { useCart } from "@/context/CartContext";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function AppShell({ children, variant = "app" }) {
   const pathname = usePathname();
@@ -96,6 +97,8 @@ export default function AppShell({ children, variant = "app" }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
+
             <Link
               href="/customer"
               className="relative flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:bg-teal-50/50 hover:text-teal-700 transition-all shadow-sm btn-press focus-ring"
