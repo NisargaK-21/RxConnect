@@ -37,7 +37,7 @@ const uploadPrescription = async (orderItemId, fileUrl, userId = null) => {
 
     const orderItem = orderItemResult.rows[0];
 
-    if (userId && orderItem.customer_id !== userId) {
+    if (userId && Number(orderItem.customer_id) !== Number(userId)) {
       throw new Error(
         "You are not authorized to upload a prescription for this order item."
       );
@@ -58,18 +58,23 @@ const uploadPrescription = async (orderItemId, fileUrl, userId = null) => {
       [orderItemId]
     );
 
+    let result;
     if (existingPrescription.rowCount > 0) {
-      throw new Error(
-        "Prescription already uploaded for this order item."
+      result = await client.query(
+        `UPDATE prescriptions
+         SET file_url = $2, status = 'pending', reviewed_by = NULL, reviewed_at = NULL
+         WHERE order_item_id = $1
+         RETURNING *`,
+        [orderItemId, fileUrl]
+      );
+    } else {
+      result = await client.query(
+        `INSERT INTO prescriptions (order_item_id, file_url, status)
+         VALUES ($1, $2, 'pending')
+         RETURNING *`,
+        [orderItemId, fileUrl]
       );
     }
-
-    const result = await client.query(
-      `INSERT INTO prescriptions (order_item_id, file_url)
-       VALUES ($1, $2)
-       RETURNING *`,
-      [orderItemId, fileUrl]
-    );
 
     if (orderItem.order_status !== ORDER_STATUS_PENDING_REVIEW) {
       await client.query(

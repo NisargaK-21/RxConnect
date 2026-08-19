@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { ICONS } from "@/lib/navigation";
 import { getUser } from "@/utils/auth";
 import { toast } from "@/components/Toast";
+import { uploadPrescription } from "@/services/prescription.service";
 
 const LIFECYCLE_STEPS = [
   { key: "placed", label: "Placed" },
@@ -39,10 +40,28 @@ function OrderTrackingContent() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(null);
+  const [uploadingRxId, setUploadingRxId] = useState(null);
   const intervalRef = useRef(null);
   const user = getUser();
 
   const customerId = user?.id || 1;
+
+  async function handleUploadPrescriptionForItem(orderItemId, file) {
+    if (!file) return;
+    setUploadingRxId(orderItemId);
+    try {
+      await uploadPrescription(orderItemId, file);
+      toast("Prescription uploaded successfully!", { variant: "success" });
+      if (selectedOrder) {
+        openDetail(selectedOrder);
+      }
+      fetchOrders(false);
+    } catch (err) {
+      toast(err?.response?.data?.message || "Failed to upload prescription", { variant: "error" });
+    } finally {
+      setUploadingRxId(null);
+    }
+  }
 
   async function fetchOrders(showToast = false) {
     try {
@@ -527,12 +546,41 @@ function OrderTrackingContent() {
                         className="flex items-center justify-between px-4 py-3 bg-white hover:bg-slate-50 transition-colors text-xs"
                       >
                         <div>
-                          <div className="font-bold text-slate-900">
-                            {it.medicine_name || `Medicine #${it.medicine_id}`}
+                          <div className="font-bold text-slate-900 flex items-center gap-2">
+                            <span>{it.medicine_name || `Medicine #${it.medicine_id}`}</span>
+                            {it.requires_prescription && (
+                              <span className="text-[10px] text-indigo-600 bg-indigo-50 font-semibold px-1.5 py-0.2 rounded border border-indigo-100">
+                                Rx Required
+                              </span>
+                            )}
                           </div>
                           <div className="text-slate-400 text-[11px] mt-0.5">
                             Qty {it.quantity} × ₹{it.unit_price ?? it.price}
                           </div>
+                          {it.requires_prescription && (
+                            <div className="mt-2 text-[11px]">
+                              {it.prescription_status === "approved" ? (
+                                <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 inline-flex items-center gap-1">
+                                  ✓ Prescription Approved
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,application/pdf"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadPrescriptionForItem(it.id, file);
+                                    }}
+                                    className="text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-teal-600 file:text-white hover:file:bg-teal-700"
+                                  />
+                                  {uploadingRxId === it.id && (
+                                    <span className="text-xs text-teal-600 font-bold animate-pulse">Uploading...</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="font-bold text-slate-900 tabular-nums text-sm">

@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.js",
     "migrate": "node-pg-migrate up",
     "rollback": "node-pg-migrate down",
-    "test": "jest --runInBand --forceExit"
+    "test": "npx jest --runInBand --forceExit"
   },
   "jest": {
     "testEnvironment": "node",
