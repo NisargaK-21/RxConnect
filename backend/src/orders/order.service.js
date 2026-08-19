@@ -28,17 +28,8 @@ const placeOrder = async (
             throw new Error("Order must contain at least one medicine");
         }
 
-        const orderResult = await client.query(
-            `
-            INSERT INTO orders(customer_id, branch_id, status)
-            VALUES($1, $2, $3)
-            RETURNING *;
-            `,
-            [customerId, branchId, "Placed"]
-        );
-
-        const order = orderResult.rows[0];
-        const orderedItems = [];
+        // 1. Stock validation & stock updates for all items
+        const preparedItems = [];
         let hasPrescriptionItem = false;
 
         for (const item of items) {
@@ -93,38 +84,6 @@ const placeOrder = async (
                 hasPrescriptionItem = true;
             }
 
-            const orderItemResult = await client.query(
-                `
-                INSERT INTO order_items
-                (
-                    order_id,
-                    medicine_id,
-                    quantity,
-                    unit_price
-                )
-                VALUES($1,$2,$3,$4)
-                RETURNING *;
-                `,
-                [
-                    order.id,
-                    medicineId,
-                    quantity,
-                    medicine.price,
-                ]
-            );
-
-            const orderItem = orderItemResult.rows[0];
-
-            if (isStandingApproved && standingPrescription) {
-                await client.query(
-                    `
-                    INSERT INTO prescriptions (order_item_id, file_url, status, reviewed_by, reviewed_at)
-                    VALUES ($1, $2, 'approved', $3, CURRENT_TIMESTAMP);
-                    `,
-                    [orderItem.id, standingPrescription.file_url, standingPrescription.approved_by]
-                );
-            }
-
             try {
                 if (medicine.requires_prescription && !isStandingApproved) {
                     await reserveStock(
@@ -148,7 +107,7 @@ const placeOrder = async (
                             {
                                 branchId,
                                 medicineId,
-                                orderId: order ? order.id : null,
+                                orderId: null,
                                 failureReason: "insufficient_stock",
                             },
                             client
@@ -187,53 +146,83 @@ const placeOrder = async (
                     const branchSuggestion =
                         alternativeBranchForOrder || medicineLevelAlternativeBranch;
 
-                    if (
-                        branchSuggestion ||
-                        substituteMedicine ||
-                        substituteOtherBranch
-                    ) {
-                        await client.query("COMMIT");
+                    const stockError = new Error("OUT_OF_STOCK");
+                    stockError.originalBranchId = branchId;
+                    stockError.originalMedicineId = medicineId;
+                    stockError.alternativeBranch = branchSuggestion;
+                    stockError.substituteMedicine = substituteMedicine;
+                    stockError.substituteOtherBranch = substituteOtherBranch;
 
-                        const stockError = new Error("OUT_OF_STOCK");
-                        stockError.orderId = order.id;
-                        stockError.orderItemId = orderItem.id;
-                        stockError.originalBranchId = branchId;
-                        stockError.originalMedicineId = medicineId;
-                        stockError.alternativeBranch = branchSuggestion;
-                        stockError.substituteMedicine = substituteMedicine;
-                        stockError.substituteOtherBranch = substituteOtherBranch;
-                        stockError.transactionCommitted = true;
-
-                        throw stockError;
-                    }
-
-                    throw new Error(
-                        "Medicine is unavailable in all branches and no substitute exists."
-                    );
+                    throw stockError;
                 }
 
                 throw error;
             }
 
-            orderedItems.push({
-                orderItemId: orderItem.id,
+            preparedItems.push({
                 medicineId,
                 quantity,
                 unitPrice: medicine.price,
                 requiresPrescription: medicine.requires_prescription,
+                isStandingApproved,
+                standingPrescription,
             });
         }
 
-        if (hasPrescriptionItem) {
-            await client.query(
+        // 2. Create Order & Order Items inside transaction
+        const initialStatus = hasPrescriptionItem ? ORDER_STATUS_PENDING_REVIEW : "Placed";
+        const orderResult = await client.query(
+            `
+            INSERT INTO orders(customer_id, branch_id, status)
+            VALUES($1, $2, $3)
+            RETURNING *;
+            `,
+            [customerId, branchId, initialStatus]
+        );
+
+        const order = orderResult.rows[0];
+        const orderedItems = [];
+
+        for (const prepItem of preparedItems) {
+            const orderItemResult = await client.query(
                 `
-                UPDATE orders
-                SET status = $1
-                WHERE id = $2;
+                INSERT INTO order_items
+                (
+                    order_id,
+                    medicine_id,
+                    quantity,
+                    unit_price
+                )
+                VALUES($1,$2,$3,$4)
+                RETURNING *;
                 `,
-                [ORDER_STATUS_PENDING_REVIEW, order.id]
+                [
+                    order.id,
+                    prepItem.medicineId,
+                    prepItem.quantity,
+                    prepItem.unitPrice,
+                ]
             );
-            order.status = ORDER_STATUS_PENDING_REVIEW;
+
+            const orderItem = orderItemResult.rows[0];
+
+            if (prepItem.isStandingApproved && prepItem.standingPrescription) {
+                await client.query(
+                    `
+                    INSERT INTO prescriptions (order_item_id, file_url, status, reviewed_by, reviewed_at)
+                    VALUES ($1, $2, 'approved', $3, CURRENT_TIMESTAMP);
+                    `,
+                    [orderItem.id, prepItem.standingPrescription.file_url, prepItem.standingPrescription.approved_by]
+                );
+            }
+
+            orderedItems.push({
+                orderItemId: orderItem.id,
+                medicineId: prepItem.medicineId,
+                quantity: prepItem.quantity,
+                unitPrice: prepItem.unitPrice,
+                requiresPrescription: prepItem.requiresPrescription,
+            });
         }
 
         let prescription = null;
@@ -265,10 +254,7 @@ const placeOrder = async (
             prescription,
         };
     } catch (err) {
-        if (!err.transactionCommitted) {
-            await client.query("ROLLBACK");
-        }
-
+        await client.query("ROLLBACK");
         throw err;
     } finally {
         client.release();
