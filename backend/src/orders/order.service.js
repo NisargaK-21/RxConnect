@@ -987,11 +987,17 @@ const getOrderById = async (orderId) => {
             oi.id,
             oi.medicine_id,
             m.name AS medicine_name,
+            m.requires_prescription,
+            p.id AS prescription_id,
+            p.file_url AS prescription_file_url,
+            p.status AS prescription_status,
             oi.quantity,
             oi.unit_price
         FROM order_items oi
         JOIN medicines m
             ON oi.medicine_id = m.id
+        LEFT JOIN prescriptions p
+            ON p.order_item_id = oi.id
         WHERE oi.order_id = $1;
         `,
         [orderId]

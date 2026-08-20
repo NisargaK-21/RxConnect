@@ -137,7 +137,7 @@ const logFulfillmentFailure = async (
   client = pool
 ) => {
   if (!branchId) {
-    throw new Error("branchId is required to log fulfillment failure");
+    return null;
   }
 
   const result = await client.query(

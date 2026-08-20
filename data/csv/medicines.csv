@@ -1,0 +1,13 @@
+id,name,description,price,requires_prescription,created_at
+1,"Paracetamol 500mg","Pain reliever and fever reducer",30.00,false,"2026-08-19 10:00:00"
+2,"Amoxicillin 500mg","Broad-spectrum antibiotic capsule",120.00,true,"2026-08-19 10:00:00"
+3,"Cetirizine 10mg","Antihistamine for allergy relief",45.00,false,"2026-08-19 10:00:00"
+4,"Ibuprofen 400mg","Anti-inflammatory pain reliever",50.00,false,"2026-08-19 10:00:00"
+5,"Metformin 500mg","First-line medication for type 2 diabetes",85.00,true,"2026-08-19 10:00:00"
+6,"Atorvastatin 10mg","Statin for cholesterol management",140.00,true,"2026-08-19 10:00:00"
+7,"Omeprazole 20mg","Proton pump inhibitor for acid reflux",65.00,false,"2026-08-19 10:00:00"
+8,"Azithromycin 500mg","Macrolide antibiotic tablet",180.00,true,"2026-08-19 10:00:00"
+9,"Vitamin C 500mg","Chewable immunity supplement",95.00,false,"2026-08-19 10:00:00"
+10,"Cough Relief Syrup 100ml","Soothing formula for dry cough",75.00,false,"2026-08-19 10:00:00"
+11,"Pantoprazole 40mg","Acid reducer for GERD",110.00,true,"2026-08-19 10:00:00"
+12,"Montelukast 10mg","Asthma and allergy controller",130.00,true,"2026-08-19 10:00:00"

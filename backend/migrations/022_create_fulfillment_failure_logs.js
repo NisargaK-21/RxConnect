@@ -1,38 +1,16 @@
 exports.up = (pgm) => {
-  pgm.createTable("fulfillment_failure_logs", {
-    id: {
-      type: "serial",
-      primaryKey: true,
-    },
-    branch_id: {
-      type: "integer",
-      notNull: true,
-      references: "branches",
-      onDelete: "CASCADE",
-    },
-    medicine_id: {
-      type: "integer",
-      references: "medicines",
-      onDelete: "SET NULL",
-    },
-    order_id: {
-      type: "integer",
-      references: "orders",
-      onDelete: "SET NULL",
-    },
-    failure_reason: {
-      type: "text",
-      notNull: true,
-      default: "insufficient_stock",
-    },
-    created_at: {
-      type: "timestamp",
-      notNull: true,
-      default: pgm.func("CURRENT_TIMESTAMP"),
-    },
-  });
+  pgm.sql(`
+    CREATE TABLE IF NOT EXISTS fulfillment_failure_logs (
+      id serial PRIMARY KEY,
+      branch_id integer NOT NULL REFERENCES branches ON DELETE CASCADE,
+      medicine_id integer REFERENCES medicines ON DELETE SET NULL,
+      order_id integer REFERENCES orders ON DELETE SET NULL,
+      failure_reason text NOT NULL DEFAULT 'insufficient_stock',
+      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 };
 
 exports.down = (pgm) => {
-  pgm.dropTable("fulfillment_failure_logs");
+  pgm.sql(`DROP TABLE IF EXISTS fulfillment_failure_logs CASCADE;`);
 };
