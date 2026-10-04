@@ -1,4 +1,5 @@
-const pool = require("./db");
+const dbModule = require("./db");
+const pool = dbModule.default || dbModule;
 const bcrypt = require("bcrypt");
 
 async function seed() {

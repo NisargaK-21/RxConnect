@@ -2,13 +2,16 @@ if (!process.env.DB_POOL_MAX) {
   process.env.DB_POOL_MAX = "50";
 }
 
-const pool = require("../database/db");
+const dbModule = require("../database/db");
+const pool = dbModule.default || dbModule;
+const stockModule = require("../stock/stock.service");
 const {
   decrementStock,
   reserveStock,
   releaseReservedStock,
-} = require("../stock/stock.service");
-const { placeOrder } = require("./order.service");
+} = stockModule.default || stockModule;
+const orderModule = require("./order.service");
+const { placeOrder } = orderModule.default || orderModule;
 
 
 let seq = 0;
